@@ -426,6 +426,10 @@ export function App() {
     availableConnections = connections,
   ) {
     const nextConnection = hydrateSavedConnection(savedConnection);
+    if (nextConnection.id === activeConnectionId && phase === "connected") {
+      void refreshSnapshot();
+      return;
+    }
     if (
       nextConnection.authMode !== "anonymous" &&
       !nextConnection.token &&
