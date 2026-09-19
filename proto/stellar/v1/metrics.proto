@@ -1,0 +1,17 @@
+syntax = "proto3";
+package stellar.v1;
+
+import "google/protobuf/empty.proto";
+
+service MetricsService {
+  rpc GetStats(google.protobuf.Empty) returns (StatsResponse);
+  rpc GetPrometheus(google.protobuf.Empty) returns (PrometheusResponse);
+}
+
+message StatsResponse {
+  string json = 1;
+}
+
+message PrometheusResponse {
+  string text = 1;
+}

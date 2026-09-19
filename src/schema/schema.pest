@@ -1,0 +1,88 @@
+// Schema grammar for StellarDB *.stellar files
+// Defines collection schemas with fields, types, and indexes
+
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ block_comment | "//" ~ (!"\n" ~ ANY)* }
+block_comment = _{ "/*" ~ (block_comment | (!"*/" ~ ANY))* ~ "*/" }
+
+// Main entry - multiple collections
+schema_file = { SOI ~ collection_def* ~ EOI }
+
+// Collection definition
+collection_def = {
+    "collection" ~ ident ~ "{" ~ collection_body ~ "}"
+}
+
+collection_body = {
+    (schema_mode | field_def | index_def)*
+}
+
+// Schema mode: schema: strict | schema: flexible
+schema_mode = { "schema" ~ ":" ~ ("strict" | "flexible") }
+
+// Field definition
+field_def = {
+    "field" ~ ident ~ ":" ~ field_type ~ field_modifiers?
+}
+
+field_type = {
+    union_type | single_type
+}
+
+single_type = {
+    array_type | object_type | range_type | reference_type | primitive_type
+}
+
+primitive_type = {
+    "string" | "int" | "float" | "decimal" | "bool" | "datetime"
+    | "duration" | "bytes" | "any"
+}
+
+// Reference: ref or ref<collection>
+reference_type = { "ref" ~ ("<" ~ ident ~ ">")? }
+
+// Range: range<type>
+range_type = { "range" ~ "<" ~ primitive_type ~ ">" }
+
+// Union: type | type | ...
+union_type = { single_type ~ ("|" ~ single_type)+ }
+
+// Array: [type] or [{...}]
+array_type = { "[" ~ (object_type | range_type | reference_type | primitive_type) ~ "]" }
+
+// Nested object: { field_def* }
+object_type = { "{" ~ nested_field_def* ~ "}" }
+
+nested_field_def = {
+    ident ~ ":" ~ field_type ~ field_modifiers?
+}
+
+// Modifiers: required, = default_value
+field_modifiers = { required_mod ~ default_mod? | default_mod ~ required_mod? }
+required_mod = { "required" }
+default_mod = { "=" ~ default_value }
+
+default_value = {
+    function_call | string_literal | number | boolean
+}
+
+function_call = @{ ident ~ "()" }
+
+// Index definition
+index_def = {
+    "index" ~ "on" ~ index_fields ~ unique_mod?
+}
+
+index_fields = {
+    "(" ~ field_path ~ ("," ~ field_path)* ~ ")" | field_path
+}
+
+field_path = @{ ident ~ ("." ~ ident)* }
+
+unique_mod = { "unique" }
+
+// Literals
+string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? }
+boolean = { "true" | "false" }
+ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }

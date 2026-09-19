@@ -1,0 +1,43 @@
+CREATE session:support SET
+  title = "Support triage",
+  agent = "local-agent",
+  started_at = d"2026-06-19T09:00:00Z";
+
+CREATE entity:billing SET
+  name = "Billing",
+  kind = "topic",
+  summary = "Invoices, plans, and payment policy";
+
+CREATE entity:acme SET
+  name = "Acme Corp",
+  kind = "customer",
+  summary = "Customer asking about invoice retention";
+
+CREATE memory:m1 SET
+  text = "Acme Corp asked whether annual invoices can be retained for seven years.",
+  source = "chat",
+  session = session:support,
+  importance = 5,
+  embedding = [0.91, 0.12, 0.04, 0.02],
+  created_at = d"2026-06-19T09:05:00Z";
+
+CREATE memory:m2 SET
+  text = "Billing policy says invoices are exported monthly and retained by the workspace owner.",
+  source = "policy",
+  session = session:support,
+  importance = 4,
+  embedding = [0.86, 0.18, 0.07, 0.01],
+  created_at = d"2026-06-19T09:07:00Z";
+
+CREATE memory:m3 SET
+  text = "The agent should answer billing questions with source links and retention caveats.",
+  source = "instruction",
+  session = session:support,
+  importance = 3,
+  embedding = [0.73, 0.24, 0.18, 0.05],
+  created_at = d"2026-06-19T09:10:00Z";
+
+RELATE memory:m1->mentions->entity:acme;
+RELATE memory:m1->mentions->entity:billing;
+RELATE memory:m2->mentions->entity:billing;
+RELATE memory:m3->mentions->entity:billing;

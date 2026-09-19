@@ -1,0 +1,43 @@
+syntax = "proto3";
+package stellar.v1;
+
+import "google/protobuf/empty.proto";
+
+service DatabaseService {
+  rpc List(google.protobuf.Empty) returns (ListDatabasesResponse);
+  rpc Create(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+  rpc Drop(DropDatabaseRequest) returns (google.protobuf.Empty);
+  rpc Stats(StatsRequest) returns (DatabaseStats);
+}
+
+message ListDatabasesResponse {
+  repeated string databases = 1;
+}
+
+message CreateDatabaseRequest {
+  string name = 1;
+}
+
+message CreateDatabaseResponse {
+  string name = 1;
+  string status = 2;
+}
+
+message DropDatabaseRequest {
+  string name = 1;
+}
+
+message StatsRequest {
+  string name = 1;
+}
+
+message DatabaseStats {
+  string name = 1;
+  int32 collections = 2;
+  int32 edge_labels = 3;
+  int32 btree_indexes = 4;
+  int32 vector_indexes = 5;
+  int32 fts_indexes = 6;
+  uint64 disk_size = 7;
+  string disk_size_human = 8;
+}

@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    name: Rust
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler clang pkg-config
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Check Cargo feature matrix
+        run: |
+          for features in embedded-lite embedded-lite,fts embedded-lite,hnsw fts,hnsw; do
+            cargo check --no-default-features --features "$features" --lib --benches --examples
+            dependencies="$(cargo tree --no-default-features --features "$features" --edges normal,build --prefix none)"
+            if printf '%s\n' "$dependencies" | grep -E '^(clap|crossterm|ratatui|tracing-subscriber|reqwest|vergen(-gitcl|-lib)?|tonic(-build|-prost|-prost-build)?|prost(-build|-types)?|axum(-server)?|rustls|tokio-rustls) v'; then
+              echo "Library profile $features must not include CLI, server, TLS, or gRPC dependencies"
+              exit 1
+            fi
+          done
+          cargo check --no-default-features --features cli,embedded-lite --bin stellar
+          cargo check --no-default-features --features server,fts,hnsw --lib
+          cargo check --no-default-features --features server,tls,fts,hnsw --lib
+          cargo check --no-default-features --features grpc,tls,fts,hnsw --lib
+          if cargo check --no-default-features --lib; then
+            echo "Reduced search builds must explicitly enable embedded-lite"
+            exit 1
+          fi
+          if cargo check --no-default-features --features server --lib; then
+            echo "Server builds must include FTS and vector search"
+            exit 1
+          fi
+          if cargo check --no-default-features --features embedded-lite --bin stellar; then
+            echo "The stellar binary must explicitly enable cli"
+            exit 1
+          fi
+
+      - name: Run clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run tests
+        run: cargo test
+
+  client:
+    name: TypeScript client
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: packages/client
+        run: bun install --frozen-lockfile
+
+      - name: Type-check and build
+        working-directory: packages/client
+        run: |
+          bun run typecheck
+          bun run build
+
+      - name: Validate package tarball
+        working-directory: packages/client
+        run: npm pack --dry-run
+
+  station:
+    name: Station
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        working-directory: station
+        run: bun install --frozen-lockfile
+
+      - name: Build Station
+        working-directory: station
+        run: bun run build

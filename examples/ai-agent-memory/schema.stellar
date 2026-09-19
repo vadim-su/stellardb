@@ -1,0 +1,30 @@
+DEFINE COLLECTION session (
+  SCHEMA STRICT,
+  title string REQUIRED,
+  started_at datetime,
+  agent string REQUIRED
+);
+
+DEFINE COLLECTION entity (
+  SCHEMA STRICT,
+  name string REQUIRED,
+  kind string REQUIRED,
+  summary string
+);
+
+DEFINE COLLECTION memory (
+  SCHEMA STRICT,
+  text string REQUIRED,
+  source string REQUIRED,
+  session ref<session>,
+  importance int DEFAULT 1,
+  embedding [float],
+  created_at datetime,
+  INDEX ON source,
+  INDEX ON importance
+);
+
+DEFINE ANALYZER memory_text TOKENIZER standard FILTERS [lowercase];
+
+CREATE INDEX ON memory(text) FULLTEXT ANALYZER memory_text;
+CREATE INDEX ON memory(embedding) HNSW DIMENSION 4 DIST COSINE;

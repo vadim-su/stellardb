@@ -1,0 +1,23 @@
+services:
+  stellardb:
+    build:
+      context: .
+    image: stellardb:local
+    ports:
+      - "3000:3000"
+    environment:
+      STELLARDB_CORS_ALLOW_ORIGINS: "http://localhost:3000"
+    volumes:
+      - stellardb-data:/data
+    command:
+      [
+        "serve",
+        "--host",
+        "0.0.0.0",
+        "--insecure-allow-remote",
+        "--data",
+        "/data",
+      ]
+
+volumes:
+  stellardb-data:

@@ -1,0 +1,38 @@
+{
+  "name": "@stellardb/client",
+  "version": "0.1.0",
+  "description": "Typed JavaScript and TypeScript client for StellarDB HTTP v1",
+  "type": "module",
+  "license": "MIT",
+  "sideEffects": false,
+  "keywords": [
+    "stellardb",
+    "database",
+    "client",
+    "typescript",
+    "sdk"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.test.json"
+  },
+  "devDependencies": {
+    "typescript": "^6"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  }
+}

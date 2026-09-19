@@ -1,0 +1,56 @@
+name: Publish @stellardb/client
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Expected packages/client package version"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Install client dependencies
+        working-directory: packages/client
+        run: bun install --frozen-lockfile
+
+      - name: Verify package version
+        working-directory: packages/client
+        run: |
+          actual="$(node -p "require('./package.json').version")"
+          test "$actual" = "${{ inputs.version }}"
+
+      - name: Build client package
+        working-directory: packages/client
+        run: bun run build
+
+      - name: Verify publish tarball
+        working-directory: packages/client
+        run: npm pack --dry-run
+
+      - name: Publish client package
+        working-directory: packages/client
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

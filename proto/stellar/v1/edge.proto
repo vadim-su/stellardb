@@ -1,0 +1,45 @@
+syntax = "proto3";
+package stellar.v1;
+
+import "google/protobuf/empty.proto";
+import "proto/stellar/v1/common.proto";
+
+service EdgeService {
+  rpc Create(CreateEdgeRequest) returns (Edge);
+  rpc Get(GetEdgeRequest) returns (Edge);
+  rpc Delete(DeleteEdgeRequest) returns (google.protobuf.Empty);
+  rpc ListOut(ListEdgesRequest) returns (stream EdgeListItem);
+  rpc ListIn(ListEdgesRequest) returns (stream EdgeListItem);
+}
+
+message CreateEdgeRequest {
+  string from = 1;
+  string label = 2;
+  string to = 3;
+  map<string, Value> fields = 4;
+}
+
+message GetEdgeRequest {
+  string from = 1;
+  string label = 2;
+  string to = 3;
+}
+
+message DeleteEdgeRequest {
+  string from = 1;
+  string label = 2;
+  string to = 3;
+}
+
+message ListEdgesRequest {
+  string node_id = 1;
+  string label = 2;
+  PaginationRequest pagination = 3;
+}
+
+message EdgeListItem {
+  oneof payload {
+    Edge edge = 1;
+    bool has_more = 2;
+  }
+}

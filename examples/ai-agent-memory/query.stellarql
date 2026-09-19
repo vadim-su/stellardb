@@ -1,0 +1,32 @@
+-- Keyword memory lookup.
+SELECT id, text, fts::score() AS score
+FROM memory
+WHERE MATCH(text) @@ "billing invoices retention"
+ORDER score DESC
+LIMIT 10;
+
+-- Semantic memory lookup. Replace the vector with an embedding from your model.
+SELECT id, text, vector::distance() AS distance
+FROM memory
+WHERE embedding <|10|> [0.88, 0.14, 0.05, 0.02]
+LIMIT 10;
+
+-- Hybrid retrieval for a prompt.
+LET keyword = (
+  SELECT id, text, fts::score() AS score
+  FROM memory
+  WHERE MATCH(text) @@ "billing policy"
+  LIMIT 10
+);
+
+LET semantic = (
+  SELECT id, text, vector::distance() AS distance
+  FROM memory
+  WHERE embedding <|10|> [0.88, 0.14, 0.05, 0.02]
+);
+
+SELECT * FROM (search::rrf([$keyword, $semantic], 10)) ORDER _rrf_score DESC;
+
+-- Expand retrieved memory to graph context.
+SELECT text, ->mentions->entity.{name, kind, summary} AS mentioned_entities
+FROM memory:m1;

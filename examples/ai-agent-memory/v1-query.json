@@ -1,0 +1,3 @@
+{
+  "query": "SELECT id, text, fts::score() AS score FROM memory WHERE MATCH(text) @@ \"billing invoices retention\" ORDER score DESC LIMIT 10"
+}

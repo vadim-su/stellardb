@@ -1,0 +1,55 @@
+{
+  "query": "SELECT 9223372036854775807 AS big, 123.45dec AS price, d\"2024-01-15T10:30:00Z\" AS created_at, 1h30m AS ttl, b\"SGVsbG8=\" AS payload, user:alice AS owner",
+  "expected_row": {
+    "big": {
+      "$type": "int64",
+      "value": "9223372036854775807"
+    },
+    "price": {
+      "$type": "decimal",
+      "value": "123.45"
+    },
+    "created_at": {
+      "$type": "datetime",
+      "value": "2024-01-15T10:30:00+00:00"
+    },
+    "ttl": {
+      "$type": "duration",
+      "value": "5400000000000"
+    },
+    "payload": {
+      "$type": "bytes",
+      "value": "SGVsbG8="
+    },
+    "owner": {
+      "$type": "reference",
+      "value": "user:alice"
+    }
+  },
+  "expected_decoded_row": {
+    "big": {
+      "kind": "int64",
+      "value": "9223372036854775807"
+    },
+    "price": {
+      "kind": "decimal",
+      "value": "123.45"
+    },
+    "created_at": {
+      "kind": "datetime",
+      "value": "2024-01-15T10:30:00+00:00"
+    },
+    "ttl": {
+      "kind": "duration",
+      "value": "5400000000000"
+    },
+    "payload": {
+      "kind": "bytes",
+      "value": "SGVsbG8="
+    },
+    "owner": {
+      "kind": "reference",
+      "value": "user:alice"
+    }
+  }
+}

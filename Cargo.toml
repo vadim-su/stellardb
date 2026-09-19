@@ -1,0 +1,130 @@
+[package]
+name = "stellardb"
+version = "0.3.0"
+edition = "2024"
+
+[[bin]]
+name = "stellar"
+path = "src/main.rs"
+required-features = ["cli"]
+
+[features]
+default = ["cli", "server", "auth", "grpc", "tls", "fts", "hnsw", "ui"]
+embedded-lite = []
+cli = [
+    "dep:anyhow",
+    "dep:clap",
+    "dep:crossterm",
+    "dep:reqwest",
+    "dep:tracing-subscriber",
+    "dep:vergen-gitcl",
+]
+auth = ["dep:argon2", "dep:jsonwebtoken", "dep:password-hash"]
+fts = ["dep:tantivy"]
+grpc = [
+    "server",
+    "dep:tonic",
+    "dep:tonic-prost",
+    "dep:prost",
+    "dep:prost-types",
+    "dep:tokio-stream",
+    "dep:tonic-prost-build",
+]
+server = ["auth", "dep:axum", "dep:tower-http"]
+tls = [
+    "server",
+    "dep:anyhow",
+    "dep:axum-server",
+    "dep:rustls",
+    "dep:rustls-pki-types",
+    "reqwest?/rustls",
+    "tonic?/tls-aws-lc",
+]
+ui = ["dep:rust-embed", "dep:mime_guess"]
+hnsw = ["dep:bimap", "dep:usearch"]
+fault-injection = []
+
+[dependencies]
+# Core - storage, network, serialization
+fjall = "3"
+chrono = { version = "0.4", features = ["serde"] }
+base64 = "0.22"
+hex = "0.4"
+tantivy = { version = "0.25", optional = true }
+usearch = { version = "2", optional = true }
+bimap = { version = "0.6", optional = true }
+axum = { version = "0.8", features = ["json"], optional = true }
+axum-server = { version = "0.8", features = ["tls-rustls"], optional = true }
+tower-http = { version = "0.6", features = ["cors"], optional = true }
+tokio = { version = "1", features = ["full"] }
+tonic = { version = "0.14", optional = true }
+tonic-prost = { version = "0.14", optional = true }
+prost = { version = "0.14", optional = true }
+prost-types = { version = "0.14", optional = true }
+tokio-stream = { version = "0.1", optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rust_decimal = { version = "1.42", features = ["serde"] }
+decimal-bytes = { version = "0.4", features = ["rust_decimal"] }
+rkyv = { version = "0.8", features = ["bytecheck", "unaligned"] }
+clap = { version = "4", features = ["derive", "env"], optional = true }
+pest = "2"
+pest_derive = "2"
+paste = "1"
+
+parking_lot = "0.12"
+sha2 = "0.10"
+subtle = "2"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
+
+# Utilities
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+anyhow = { version = "1", optional = true }
+rand = "0.10"
+jsonwebtoken = { version = "9", optional = true }
+argon2 = { version = "0.5", optional = true }
+password-hash = { version = "0.5", features = ["getrandom"], optional = true }
+regex = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json"], optional = true }
+rustls = { version = "0.23", optional = true }
+rustls-pki-types = { version = "1", optional = true }
+crossterm = { version = "0.29", optional = true }
+
+# UI (optional)
+rust-embed = { version = "8", optional = true }
+mime_guess = { version = "2", optional = true }
+nanoid = { git = "https://github.com/vadim-su/nanoid", version = "0.5.0" }
+
+[dev-dependencies]
+tempfile = "3"
+futures = "0.3"
+criterion = { version = "0.8", features = ["html_reports"] }
+arbtest = "0.3"
+arbitrary = { version = "1", features = ["derive"] }
+rcgen = "0.14"
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
+
+[[test]]
+name = "fault_injection"
+path = "tests/fault_injection.rs"
+required-features = ["fault-injection"]
+
+[[bench]]
+name = "e2e"
+path = "benches/e2e/main.rs"
+harness = false
+
+[[bench]]
+name = "traversal_bench"
+harness = false
+
+[[bench]]
+name = "reproducible"
+path = "benches/reproducible.rs"
+harness = false
+
+[build-dependencies]
+vergen-gitcl = { version = "9", features = ["build", "cargo", "rustc"], optional = true }
+tonic-prost-build = { version = "0.14", optional = true }

@@ -1,0 +1,820 @@
+// ========================
+// Section 1: Foundation
+// ========================
+
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+COMMENT = _{ block_comment | "//" ~ (!"\n" ~ ANY)* }
+block_comment = _{ "/*" ~ (block_comment | (!"*/" ~ ANY))* ~ "*/" }
+
+query = _{ SOI ~ statement_list ~ EOI }
+// Allow leading semicolons and handle empty input gracefully
+statement_list = { ";"* ~ (statement ~ (";" ~ statement?)*)? }
+
+statement = {
+    explain_stmt
+  | let_stmt
+  | relate_stmt
+  | select_stmt
+  | insert_stmt
+  | create_user_stmt
+  | create_api_key_stmt
+  | create_policy_stmt
+  | create_stmt
+  | update_stmt
+  | upsert_stmt
+  | delete_stmt
+  | begin_stmt
+  | commit_stmt
+  | rollback_stmt
+  | define_collection_stmt
+  | drop_user_stmt
+  | drop_api_key_stmt
+  | drop_policy_stmt
+  | drop_collection_stmt
+  | describe_stmt
+  | create_index_stmt
+  | drop_index_stmt
+  | reindex_stmt
+  | define_analyzer_stmt
+  | drop_analyzer_stmt
+  | alter_user_stmt
+  | alter_collection_attrs_stmt
+  | set_stmt
+  | expr_stmt
+}
+
+// Expression as statement (fallback - must be last)
+expr_stmt = { expr }
+
+// LET statement for variable binding
+let_stmt = { kw_LET ~ ident ~ "=" ~ expr }
+
+// SET statement for session configuration
+set_stmt = { kw_SET ~ kw_QUERY_TIMEOUT ~ "=" ~ (duration_literal | number) }
+
+// ========================
+// Section 1a: Keyword rules (atomic with word-boundary lookahead)
+// ========================
+// Pest's implicit WHITESPACE rule makes spaces optional between tokens.
+// These atomic rules prevent keywords from fusing with the next token
+// (e.g., "SELECTFROM" must not parse as SELECT + FROM).
+
+kw_SELECT      = @{ ^"SELECT"      ~ !(LETTER | NUMBER | "_") }
+kw_FROM        = @{ ^"FROM"        ~ !(LETTER | NUMBER | "_") }
+kw_WHERE       = @{ ^"WHERE"       ~ !(LETTER | NUMBER | "_") }
+kw_ORDER       = @{ ^"ORDER"       ~ !(LETTER | NUMBER | "_") }
+kw_LIMIT       = @{ ^"LIMIT"       ~ !(LETTER | NUMBER | "_") }
+kw_OFFSET      = @{ ^"OFFSET"      ~ !(LETTER | NUMBER | "_") }
+kw_GROUP       = @{ ^"GROUP"       ~ !(LETTER | NUMBER | "_") }
+kw_AS          = @{ ^"AS"          ~ !(LETTER | NUMBER | "_") }
+kw_INSERT      = @{ ^"INSERT"      ~ !(LETTER | NUMBER | "_") }
+kw_INTO        = @{ ^"INTO"        ~ !(LETTER | NUMBER | "_") }
+kw_CREATE      = @{ ^"CREATE"      ~ !(LETTER | NUMBER | "_") }
+kw_SET         = @{ ^"SET"         ~ !(LETTER | NUMBER | "_") }
+kw_UPDATE      = @{ ^"UPDATE"      ~ !(LETTER | NUMBER | "_") }
+kw_UPSERT      = @{ ^"UPSERT"      ~ !(LETTER | NUMBER | "_") }
+kw_REPLACE     = @{ ^"REPLACE"     ~ !(LETTER | NUMBER | "_") }
+kw_DELETE      = @{ ^"DELETE"      ~ !(LETTER | NUMBER | "_") }
+kw_BEGIN       = @{ ^"BEGIN"       ~ !(LETTER | NUMBER | "_") }
+kw_COMMIT      = @{ ^"COMMIT"      ~ !(LETTER | NUMBER | "_") }
+kw_ROLLBACK    = @{ ^"ROLLBACK"    ~ !(LETTER | NUMBER | "_") }
+kw_EXPLAIN     = @{ ^"EXPLAIN"     ~ !(LETTER | NUMBER | "_") }
+kw_ANALYZE     = @{ ^"ANALYZE"     ~ !(LETTER | NUMBER | "_") }
+kw_DEFINE      = @{ ^"DEFINE"      ~ !(LETTER | NUMBER | "_") }
+kw_COLLECTION  = @{ ^"COLLECTION"  ~ !(LETTER | NUMBER | "_") }
+kw_COLLECTIONS = @{ ^"COLLECTIONS" ~ !(LETTER | NUMBER | "_") }
+kw_SCHEMA      = @{ ^"SCHEMA"      ~ !(LETTER | NUMBER | "_") }
+kw_STRICT      = @{ ^"STRICT"      ~ !(LETTER | NUMBER | "_") }
+kw_FLEXIBLE    = @{ ^"FLEXIBLE"    ~ !(LETTER | NUMBER | "_") }
+kw_REQUIRED    = @{ ^"REQUIRED"    ~ !(LETTER | NUMBER | "_") }
+kw_DEFAULT     = @{ ^"DEFAULT"     ~ !(LETTER | NUMBER | "_") }
+kw_DROP        = @{ ^"DROP"        ~ !(LETTER | NUMBER | "_") }
+kw_CASCADE     = @{ ^"CASCADE"     ~ !(LETTER | NUMBER | "_") }
+kw_DESCRIBE    = @{ ^"DESCRIBE"    ~ !(LETTER | NUMBER | "_") }
+kw_INDEX       = @{ ^"INDEX"       ~ !(LETTER | NUMBER | "_") }
+kw_ON          = @{ ^"ON"          ~ !(LETTER | NUMBER | "_") }
+kw_UNIQUE      = @{ ^"UNIQUE"      ~ !(LETTER | NUMBER | "_") }
+kw_FULLTEXT    = @{ ^"FULLTEXT"    ~ !(LETTER | NUMBER | "_") }
+kw_REINDEX     = @{ ^"REINDEX"     ~ !(LETTER | NUMBER | "_") }
+kw_ANALYZER    = @{ ^"ANALYZER"   ~ !(LETTER | NUMBER | "_") }
+kw_ASC         = @{ ^"ASC"         ~ !(LETTER | NUMBER | "_") }
+kw_DESC        = @{ ^"DESC"        ~ !(LETTER | NUMBER | "_") }
+kw_IS          = @{ ^"IS"          ~ !(LETTER | NUMBER | "_") }
+kw_NULL        = @{ ^"NULL"        ~ !(LETTER | NUMBER | "_") }
+kw_NONE        = @{ ^"NONE"        ~ !(LETTER | NUMBER | "_") }
+kw_IN          = @{ ^"IN"          ~ !(LETTER | NUMBER | "_") }
+kw_AND         = @{ ^"AND"         ~ !(LETTER | NUMBER | "_") }
+kw_OR          = @{ ^"OR"          ~ !(LETTER | NUMBER | "_") }
+kw_NOT         = @{ ^"NOT"         ~ !(LETTER | NUMBER | "_") }
+kw_LET         = @{ ^"LET"         ~ !(LETTER | NUMBER | "_") }
+kw_DISTINCT    = @{ ^"DISTINCT"    ~ !(LETTER | NUMBER | "_") }
+kw_VALUE       = @{ ^"VALUE"       ~ !(LETTER | NUMBER | "_") }
+kw_MATCH       = @{ ^"MATCH"       ~ !(LETTER | NUMBER | "_") }
+kw_MODE        = @{ ^"MODE"        ~ !(LETTER | NUMBER | "_") }
+kw_HNSW        = @{ ^"HNSW"        ~ !(LETTER | NUMBER | "_") }
+kw_DIMENSION   = @{ ^"DIMENSION"   ~ !(LETTER | NUMBER | "_") }
+kw_DIST        = @{ ^"DIST"        ~ !(LETTER | NUMBER | "_") }
+kw_COSINE      = @{ ^"COSINE"      ~ !(LETTER | NUMBER | "_") }
+kw_EUCLIDEAN   = @{ ^"EUCLIDEAN"   ~ !(LETTER | NUMBER | "_") }
+kw_DOT         = @{ ^"DOT"         ~ !(LETTER | NUMBER | "_") }
+kw_M           = @{ ^"M"           ~ !(LETTER | NUMBER | "_") }
+kw_EF_CONSTRUCTION = @{ ^"EF_CONSTRUCTION" ~ !(LETTER | NUMBER | "_") }
+kw_TOKENIZER   = @{ ^"TOKENIZER"   ~ !(LETTER | NUMBER | "_") }
+kw_FILTERS     = @{ ^"FILTERS"     ~ !(LETTER | NUMBER | "_") }
+kw_standard    = @{ ^"standard"    ~ !(LETTER | NUMBER | "_") }
+kw_whitespace  = @{ ^"whitespace"  ~ !(LETTER | NUMBER | "_") }
+kw_ngram       = @{ ^"ngram"       ~ !(LETTER | NUMBER | "_") }
+kw_pattern     = @{ ^"pattern"     ~ !(LETTER | NUMBER | "_") }
+kw_lowercase   = @{ ^"lowercase"   ~ !(LETTER | NUMBER | "_") }
+kw_ascii_folding = @{ ^"ascii_folding" ~ !(LETTER | NUMBER | "_") }
+kw_stemmer     = @{ ^"stemmer"     ~ !(LETTER | NUMBER | "_") }
+kw_stopwords   = @{ ^"stopwords"   ~ !(LETTER | NUMBER | "_") }
+kw_length      = @{ ^"length"      ~ !(LETTER | NUMBER | "_") }
+kw_FETCH       = @{ ^"FETCH"       ~ !(LETTER | NUMBER | "_") }
+kw_RELATE      = @{ ^"RELATE"      ~ !(LETTER | NUMBER | "_") }
+kw_CONTENT     = @{ ^"CONTENT"     ~ !(LETTER | NUMBER | "_") }
+kw_RETURN      = @{ ^"RETURN"      ~ !(LETTER | NUMBER | "_") }
+kw_AFTER       = @{ ^"AFTER"       ~ !(LETTER | NUMBER | "_") }
+kw_BEFORE      = @{ ^"BEFORE"      ~ !(LETTER | NUMBER | "_") }
+kw_ALL         = @{ ^"ALL"         ~ !(LETTER | NUMBER | "_") }
+kw_TIMEOUT     = @{ ^"TIMEOUT"     ~ !(LETTER | NUMBER | "_") }
+kw_QUERY_TIMEOUT = @{ ^"QUERY_TIMEOUT" ~ !(LETTER | NUMBER | "_") }
+kw_IF          = @{ ^"IF"          ~ !(LETTER | NUMBER | "_") }
+kw_THEN        = @{ ^"THEN"        ~ !(LETTER | NUMBER | "_") }
+kw_ELSE        = @{ ^"ELSE"        ~ !(LETTER | NUMBER | "_") }
+kw_END         = @{ ^"END"         ~ !(LETTER | NUMBER | "_") }
+kw_FOR         = @{ ^"FOR"         ~ !(LETTER | NUMBER | "_") }
+kw_DO          = @{ ^"DO"          ~ !(LETTER | NUMBER | "_") }
+kw_BREAK       = @{ ^"BREAK"       ~ !(LETTER | NUMBER | "_") }
+kw_CONTINUE    = @{ ^"CONTINUE"    ~ !(LETTER | NUMBER | "_") }
+kw_ALTER       = @{ ^"ALTER"       ~ !(LETTER | NUMBER | "_") }
+kw_USER        = @{ ^"USER"        ~ !(LETTER | NUMBER | "_") }
+kw_PASSWORD    = @{ ^"PASSWORD"    ~ !(LETTER | NUMBER | "_") }
+kw_API         = @{ ^"API"         ~ !(LETTER | NUMBER | "_") }
+kw_KEY         = @{ ^"KEY"         ~ !(LETTER | NUMBER | "_") }
+kw_POLICY      = @{ ^"POLICY"      ~ !(LETTER | NUMBER | "_") }
+kw_WHEN        = @{ ^"WHEN"        ~ !(LETTER | NUMBER | "_") }
+kw_ALLOW       = @{ ^"ALLOW"       ~ !(LETTER | NUMBER | "_") }
+kw_DENY        = @{ ^"DENY"        ~ !(LETTER | NUMBER | "_") }
+kw_REMOVE      = @{ ^"REMOVE"      ~ !(LETTER | NUMBER | "_") }
+kw_ACTION      = @{ ^"ACTION"      ~ !(LETTER | NUMBER | "_") }
+
+// ========================
+// Section 2: Primitives
+// ========================
+
+// Unicode-aware identifier (collection names, field names)
+// Supports: unquoted (letters, numbers, _) or quoted for special chars
+// Quoted identifiers support backslash escaping: \` for backtick, \\ for backslash
+ident = { quoted_ident | unquoted_ident }
+quoted_ident = @{ "`" ~ quoted_ident_char* ~ "`" }
+quoted_ident_char = { escaped_char | (!"`" ~ !"\\" ~ ANY) }
+escaped_char = { "\\" ~ ("`" | "\\") }
+unquoted_ident = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+
+// Field path for nested fields: address.city
+// Non-atomic to allow proper parsing of quoted identifiers with escape sequences
+field_path = { ident ~ ("." ~ ident)* }
+
+// Literal values
+string = { double_quoted | single_quoted }
+double_quoted = @{ "\"" ~ double_quoted_char* ~ "\"" }
+single_quoted = @{ "'" ~ single_quoted_char* ~ "'" }
+double_quoted_char = _{ string_escape | !("\"" | "\\") ~ ANY }
+single_quoted_char = _{ string_escape | !("'" | "\\") ~ ANY }
+string_escape = _{ "\\" ~ (unicode_escape | "\"" | "'" | "\\" | "/" | "b" | "f" | "n" | "r" | "t") }
+unicode_escape = _{ "u" ~ ASCII_HEX_DIGIT{4} }
+// Number literals - order matters: decimal_number > float_number > int_number
+number = { decimal_number | float_number | int_number }
+decimal_number = @{ "-"? ~ ASCII_DIGIT+ ~ ("." ~ ASCII_DIGIT+)? ~ ^"dec" }
+float_number = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ | "-"? ~ ASCII_DIGIT+ ~ ^"f" }
+int_number = @{ "-"? ~ ASCII_DIGIT+ }
+integer = @{ ASCII_DIGIT+ }
+boolean = { ^"true" | ^"false" }
+null = { ^"null" }
+
+// Reference literal: collection:key (unquoted, for values like user:alice)
+// Different from target rule - this is for expressions/values, not data sources
+reference_literal = { collection ~ ":" ~ key }
+
+// Composite values (for INSERT/CREATE/UPDATE, not expressions)
+value = { reference_literal | string | number | boolean | null | array | object }
+array = { "[" ~ (value ~ ("," ~ value)*)? ~ "]" }
+object = { "{" ~ object_pairs? ~ "}" }
+object_pairs = { object_pair ~ ("," ~ object_pair)* }
+object_pair = { (ident | string) ~ ":" ~ value }
+
+// ========================
+// Section 3: Targets & Keys
+// ========================
+
+target = { collection ~ (":" ~ key)? }
+collection = { ident }
+// Key supports: Unicode chars, or quoted string for special chars like "/"
+key = { quoted_key | unquoted_key }
+quoted_key = @{ "\"" ~ double_quoted_char* ~ "\"" }
+unquoted_key = @{ (LETTER | NUMBER | "_" | "-")+ }
+
+// ========================
+// Section 4: Expressions
+// ========================
+
+// Precedence (lowest to highest):
+//   coalesce_expr < or_expr < and_expr < not_expr < comparison/in < addition < multiplication < unary < primary
+
+expr = { coalesce_expr }
+coalesce_expr = { or_expr ~ (coalesce_op ~ or_expr)* }
+coalesce_op = { "??" }
+
+or_expr = { and_expr ~ (or_op ~ and_expr)* }
+and_expr = { not_expr ~ (and_op ~ not_expr)* }
+not_expr = { not_op? ~ comparison }
+comparison = { in_expr ~ (comparator ~ in_expr | is_check)? }
+is_check = { is_not_null | is_null | is_not_none | is_none }
+is_not_null = { kw_IS ~ kw_NOT ~ kw_NULL }
+is_null = { kw_IS ~ kw_NULL }
+is_not_none = { kw_IS ~ kw_NOT ~ kw_NONE }
+is_none = { kw_IS ~ kw_NONE }
+in_expr = { addition ~ (not_in_op | in_op)? }
+addition = { multiplication ~ ((add_op | sub_op) ~ multiplication)* }
+multiplication = { unary ~ ((mul_op | div_op) ~ unary)* }
+unary = { (neg_op | not_op)? ~ primary }
+primary = { primary_base ~ postfix_op* }
+primary_base = { if_expr | for_expr | break_expr | continue_expr | traversal_expr | subquery_expr | value_ref | parent_ref | variable_ref | "(" ~ expr ~ ")" | const_ref | fts_expr | knn_expr | call_expr | object_expr | array_expr | reference_literal | literal | field_ref }
+
+// Variable reference: $name (user-defined variable)
+variable_ref = { "$" ~ ident }
+
+// Constant reference: namespace::name (NO parentheses)
+// Must be placed before call_expr to match first; negative lookahead ensures
+// that "math::pi(" routes to call_expr instead
+const_ref = { const_namespace ~ "::" ~ const_name ~ !("(") }
+const_namespace = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+const_name = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+
+// Object/array expression literals (values are expressions, not just constants)
+object_expr = { "{" ~ (object_expr_pair ~ ("," ~ object_expr_pair)*)? ~ "}" }
+object_expr_pair = { (ident | string) ~ ":" ~ expr }
+array_expr = { "[" ~ (expr ~ ("," ~ expr)*)? ~ "]" }
+subquery_expr = { "(" ~ select_stmt ~ ")" ~ index_suffix? }
+index_suffix  = { "[" ~ expr ~ "]" }
+value_ref     = { "$value" ~ ("." ~ field_path)? }
+parent_ref    = { "$parent" ~ parent_chain ~ "." ~ field_path }
+parent_chain  = { ("." ~ "parent")* }
+
+and_op = { kw_AND }
+or_op = { kw_OR }
+not_op = { kw_NOT }
+comparator = { ">=" | "<=" | "!=" | "=" | ">" | "<" }
+add_op = { "+" }
+sub_op = { "-" }
+mul_op = { "*" }
+div_op = { "/" }
+neg_op = { "-" ~ !(">") }
+// IN operator: array literal [a, b, c], subquery (SELECT ...), or variable $var
+in_op = { kw_IN ~ (in_array | in_subquery | in_expr_target) }
+not_in_op = { kw_NOT ~ kw_IN ~ (in_array | in_subquery | in_expr_target) }
+in_array = { "[" ~ expr_list? ~ "]" }
+in_subquery = { "(" ~ select_stmt ~ ")" }
+in_expr_target = { variable_ref | field_ref }
+expr_list = { expr ~ ("," ~ expr)* }
+
+// Slice bounds for array slicing
+slice_bounds = {
+    slice_start ~ ".." ~ slice_end?    // [0..3] or [0..]
+  | ".." ~ slice_end?                  // [..3] or [..]
+}
+slice_start = { expr }
+slice_end = { expr }
+
+// Postfix operators (indexing, slicing, field access)
+postfix_op = { slice_op | index_op | field_access_op }
+slice_op = { "[" ~ slice_bounds ~ "]" }
+index_op = { "[" ~ expr ~ "]" }
+field_access_op = { "." ~ ident }
+
+// Function / aggregate calls (unified to avoid grammar ambiguity)
+call_expr = { (call_namespace ~ "::")? ~ func_name ~ "(" ~ call_args ~ ")" }
+call_namespace = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+func_name = @{ (LETTER | "_") ~ (LETTER | NUMBER | "_")* }
+call_args = { "*" | distinct_arg | func_args? }
+distinct_arg = { kw_DISTINCT ~ expr }
+func_args = { expr ~ ("," ~ expr)* }
+
+// Literal values in expressions
+// Order is important:
+// 1. datetime_literal (d"...") first so d"..." parses correctly
+// 2. bytes_literal (0x...) before number so 0xFF parses as bytes, not 0 followed by xF...
+// 3. duration_literal before number so 1h parses as duration, not 1 + identifier
+//    - duration_unit_boundary ensures word boundary so "30dec" doesn't match as "30d" + "ec"
+// 4. number last among numeric types
+literal = { datetime_literal | bytes_literal | duration_literal | number | string | boolean | null }
+
+// Datetime literal: d"2024-01-15" or d"2024-01-15T10:30:00Z"
+datetime_literal = ${ "d" ~ string }
+
+// Duration literal: 1h30m, 2d, 500ms
+// Multiple duration segments like 1h30m are supported
+// Word boundary check at the end ensures "30dec" doesn't match as "30d" + leftover
+duration_literal = ${ duration_segment+ ~ !(ASCII_ALPHA | ASCII_DIGIT) }
+duration_segment = @{ ASCII_DIGIT+ ~ duration_unit }
+duration_unit = { "ns" | "us" | "ms" | "s" | "m" | "h" | "d" | "w" | "y" }
+
+// Bytes literal: b"base64" or 0xhex
+bytes_literal = ${ ("b" ~ string) | ("0x" ~ ASCII_HEX_DIGIT+) }
+
+// Field reference (dotted path)
+field_ref = { field_path }
+
+// ========================
+// Section 4a: FTS Operators
+// ========================
+
+// FTS operators
+// @@ - simple FTS
+// @:name@ - named FTS
+fts_op = { fts_named | fts_simple }
+fts_simple = { "@@" }
+fts_named = { "@:" ~ ident ~ "@" }
+
+// MATCH clause for multi-field FTS
+match_clause = { kw_MATCH ~ "(" ~ match_field_list ~ ")" ~ match_mode? }
+match_field_list = { match_field ~ ("," ~ match_field)* }
+match_field = { ident ~ field_boost? }
+field_boost = { "^" ~ number }
+match_mode = { kw_MODE ~ (mode_max | mode_sum) }
+mode_sum = { ^"SUM" }
+mode_max = { ^"MAX" ~ ("(" ~ number ~ ")")? }
+
+// FTS expression: field @@ "query" or MATCH(...) @@ "query"
+fts_expr = { (match_clause | field_path) ~ fts_op ~ string }
+
+// ========================
+// Section 4b: KNN Operators
+// ========================
+
+// KNN operator: <|10|> or <|10, 100|> (K neighbors, optional effort parameter)
+knn_op = { "<|" ~ integer ~ ("," ~ integer)? ~ "|>" }
+
+// KNN expression: field <|K|> vector or field <|K, effort|> vector
+knn_expr = { field_path ~ knn_op ~ primary }
+
+// ========================
+// Section 4c: Control Flow Expressions
+// ========================
+
+// Block: sequence of statements inside IF/FOR bodies
+block = { (statement ~ (";" ~ statement?)*)? }
+
+// IF expression: IF cond THEN block [ELSE IF cond THEN block]* [ELSE block] END
+if_expr = {
+    kw_IF ~ expr ~ kw_THEN ~ block
+    ~ (kw_ELSE ~ kw_IF ~ expr ~ kw_THEN ~ block)*
+    ~ (kw_ELSE ~ block)?
+    ~ kw_END
+}
+
+// FOR expression: FOR $var IN iterable DO block END
+for_expr = {
+    kw_FOR ~ variable_ref ~ kw_IN ~ expr ~ kw_DO ~ block ~ kw_END
+}
+
+// BREAK/CONTINUE
+break_expr    = { kw_BREAK }
+continue_expr = { kw_CONTINUE }
+
+// ========================
+// Section 5: SELECT
+// ========================
+
+select_stmt = {
+    kw_SELECT ~ distinct_mod? ~ value_mod? ~ projection ~ (kw_FROM ~ data_source)? ~ where_clause? ~ group_clause? ~ order_clause? ~ limit_clause? ~ offset_clause? ~ fetch_clause?
+}
+distinct_mod = { kw_DISTINCT }
+// VALUE modifier: only match if NOT immediately followed by FROM or AS
+// This allows "SELECT value FROM ..." and "SELECT value AS x FROM ..."
+// to parse "value" as a field name
+value_mod    = { kw_VALUE ~ !(kw_FROM | kw_AS) }
+
+// Data source for FROM clause
+// Either a collection target (for storage) or any expression
+// Supports field access and postfix ops on targets: FROM product:1.embedding[0..5]
+data_source = {
+    from_expr |                                  // expression-based sources (must come first for subquery)
+    target ~ ("." ~ field_path)? ~ postfix_op*   // collection / collection:key / collection:key.field.path[0..5]
+}
+
+// Expression as data source
+from_expr = {
+    "(" ~ select_stmt ~ ")" |     // subquery: (SELECT ...)
+    "(" ~ expr ~ ")" |            // parenthesized expr: (func(...))
+    range_literal |               // range: 1..10
+    call_expr |                   // function: search::rrf(...)
+    parent_ref ~ postfix_op* |    // parent ref with optional postfix: $parent.customer
+    variable_ref ~ postfix_op* |  // variable with optional field access: $results.items
+    array_expr                    // array: [1, 2, 3]
+}
+
+// Range literal (always inclusive)
+range_literal = { range_bound ~ ".." ~ range_bound }
+range_bound = { integer | variable_ref | "(" ~ expr ~ ")" }
+
+projection = { "*" | projection_item_list }
+projection_item_list = { projection_item ~ ("," ~ projection_item)* }
+projection_item = { field_expansion | (expr ~ alias_clause?) }
+alias_clause = { kw_AS ~ ident }
+
+// Multi-field selection (brace expansion): field.{a, b} expands to field.a, field.b
+// Supports arbitrary prefix depth: a.b.c.{x, y} -> a.b.c.x, a.b.c.y
+// Supports field aliasing: field.{alias: source, other} -> field.source AS alias, field.other
+field_expansion = { field_expansion_prefix ~ "{" ~ field_expansion_item ~ ("," ~ field_expansion_item)* ~ "}" }
+field_expansion_item = { (ident ~ ":")? ~ ident }
+field_expansion_prefix = @{ (ident ~ ".")+ }
+
+where_clause = { kw_WHERE ~ expr }
+group_clause = { kw_GROUP ~ field_path ~ ("," ~ field_path)* }
+order_clause = { kw_ORDER ~ order_item ~ ("," ~ order_item)* }
+order_item   = { expr ~ order_dir? }
+order_dir    = { kw_ASC | kw_DESC }
+limit_clause = { kw_LIMIT ~ integer }
+offset_clause = { kw_OFFSET ~ integer }
+
+// ========================
+// Section 5a: FETCH Clause
+// ========================
+
+fetch_clause = { kw_FETCH ~ fetch_list }
+fetch_list = { fetch_item ~ ("," ~ fetch_item)* }
+fetch_item = { field_path ~ (kw_AS ~ ident)? }
+
+// ========================
+// Section 6: DML (INSERT, CREATE, UPDATE, DELETE)
+// ========================
+
+insert_stmt = {
+    kw_INSERT ~ kw_INTO ~ collection ~ object_list
+}
+
+object_list = { object ~ ("," ~ object)* }
+
+create_stmt = {
+    kw_CREATE ~ target ~ kw_SET ~ assignments
+}
+
+update_stmt = {
+    kw_UPDATE ~ target ~ kw_SET ~ assignments ~ where_clause?
+}
+
+upsert_stmt = {
+    kw_UPSERT ~ target ~ kw_REPLACE? ~ kw_SET ~ assignments
+}
+
+delete_stmt = {
+    kw_DELETE ~ (delete_edge_target | target) ~ where_clause?
+}
+
+// Edge deletion target: user:alice->follows->user:bob or user:alice->follows
+delete_edge_target = {
+    relate_target ~ "->" ~ ident ~ ("->" ~ relate_target)?
+}
+
+assignments = { assignment ~ ("," ~ assignment)* }
+assignment = { field_path ~ "=" ~ expr }
+
+// ========================
+// Section 7: Transaction & EXPLAIN
+// ========================
+
+begin_stmt = { kw_BEGIN }
+commit_stmt = { kw_COMMIT }
+rollback_stmt = { kw_ROLLBACK }
+
+explain_stmt = { kw_EXPLAIN ~ analyze_flag? ~ explainable_stmt }
+analyze_flag = { kw_ANALYZE }
+explainable_stmt = { select_stmt | update_stmt | delete_stmt }
+
+// ========================
+// Section 8: Schema DDL
+// ========================
+
+// DEFINE COLLECTION
+define_collection_stmt = {
+    kw_DEFINE ~ kw_COLLECTION ~ ident ~ define_collection_body?
+}
+
+define_collection_body = {
+    "(" ~ define_collection_items ~ ")"
+}
+
+define_collection_items = {
+    define_collection_item ~ ("," ~ define_collection_item)*
+}
+
+define_collection_item = {
+    schema_mode_def | index_def | field_def
+}
+
+schema_mode_def = {
+    kw_SCHEMA ~ schema_mode_value
+}
+
+schema_mode_value = { kw_STRICT | kw_FLEXIBLE }
+
+field_def = {
+    ident ~ field_type ~ field_modifiers?
+}
+
+// Field type with union support: string | int | null
+field_type = { field_type_union }
+
+field_type_union = { field_type_single ~ ("|" ~ field_type_single)* }
+
+field_type_single = {
+    array_type | range_type | object_type | primitive_type
+}
+
+primitive_type = {
+    ^"any" | ^"string" | ^"int" | ^"float" | ^"decimal" | ^"bool" | ^"datetime" | ^"duration" | ^"bytes" | ^"array" | ^"object" | reference_type
+}
+
+reference_type = { (^"reference" | ^"ref") ~ ("<" ~ ident ~ ">")? }
+
+// Range type: range<int>, range<float>, etc.
+range_type = { ^"range" ~ "<" ~ field_type_single ~ ">" }
+
+array_type = {
+    "[" ~ (object_type | primitive_type) ~ "]"
+}
+
+object_type = {
+    "{" ~ nested_schema_mode? ~ (nested_field ~ ("," ~ nested_field)*)? ~ "}"
+}
+
+nested_schema_mode = {
+    kw_SCHEMA ~ schema_mode_value ~ ","?
+}
+
+nested_field = {
+    ident ~ field_type ~ field_modifiers?
+}
+
+field_modifiers = {
+    (required_mod | default_mod)+
+}
+
+required_mod = { kw_REQUIRED }
+
+default_mod = { kw_DEFAULT ~ default_value }
+
+default_value = {
+    now_fn | string | number | boolean
+}
+
+now_fn = { ^"now()" }
+
+// DROP COLLECTION
+drop_collection_stmt = {
+    kw_DROP ~ kw_COLLECTION ~ ident ~ cascade_mod?
+}
+
+cascade_mod = { kw_CASCADE }
+
+// DESCRIBE
+describe_stmt = {
+    kw_DESCRIBE ~ (describe_collections | describe_collection)
+}
+
+describe_collections = { kw_COLLECTIONS }
+describe_collection = { kw_COLLECTION ~ ident }
+
+// ========================
+// Section 9: Index DDL
+// ========================
+
+// Index name for named indexes (cannot be keyword ON)
+index_name = { !kw_ON ~ ident }
+
+// Inline index definition (inside DEFINE COLLECTION)
+index_def = {
+    kw_INDEX ~ kw_ON ~ index_fields ~ index_options?
+}
+
+// Standalone CREATE INDEX [name] ON collection(field1, field2) UNIQUE
+// Supports UNIQUE (for unique constraints) or FULLTEXT for full-text search
+// Examples:
+//   CREATE INDEX ON users(email) UNIQUE
+//   CREATE INDEX idx_email ON users(email) UNIQUE
+//   CREATE INDEX idx_content ON posts(content) FULLTEXT ANALYZER english
+create_index_stmt = {
+    kw_CREATE ~ kw_INDEX ~ index_name? ~ kw_ON ~ collection ~ index_fields ~ index_options?
+}
+
+// DROP INDEX name ON collection
+// Example: DROP INDEX idx_email ON users
+drop_index_stmt = {
+    kw_DROP ~ kw_INDEX ~ ident ~ kw_ON ~ collection
+}
+
+// REINDEX name ON collection
+// Example: REINDEX idx_email ON users
+reindex_stmt = { kw_REINDEX ~ ident ~ kw_ON ~ collection }
+
+// Index field list: (field1, field2) or just field
+index_fields = {
+    "(" ~ field_path ~ ("," ~ field_path)* ~ ")" | field_path
+}
+
+// Index options: UNIQUE for unique constraints, FULLTEXT for full-text search, HNSW for vector indexes
+index_options = { unique_mod | fulltext_mod | hnsw_mod }
+unique_mod = { kw_UNIQUE }
+fulltext_mod = { kw_FULLTEXT ~ analyzer_clause? }
+analyzer_clause = { kw_ANALYZER ~ ident }
+
+// HNSW vector index options
+hnsw_mod = { kw_HNSW ~ hnsw_params }
+hnsw_params = { hnsw_dimension ~ hnsw_dist? ~ hnsw_m? ~ hnsw_ef? }
+hnsw_dimension = { kw_DIMENSION ~ integer }
+hnsw_dist = { kw_DIST ~ distance_metric }
+distance_metric = { kw_COSINE | kw_EUCLIDEAN | kw_DOT }
+hnsw_m = { kw_M ~ integer }
+hnsw_ef = { kw_EF_CONSTRUCTION ~ integer }
+
+// ========================
+// Section 10: Analyzer DDL
+// ========================
+
+// DEFINE ANALYZER name TOKENIZER type FILTERS [filter1, filter2, ...]
+define_analyzer_stmt = {
+    kw_DEFINE ~ kw_ANALYZER ~ ident ~ tokenizer_clause ~ filters_clause?
+}
+
+tokenizer_clause = { kw_TOKENIZER ~ tokenizer_spec }
+
+tokenizer_spec = {
+    kw_standard |
+    kw_whitespace |
+    ngram_tokenizer |
+    pattern_tokenizer
+}
+
+ngram_tokenizer = { kw_ngram ~ "(" ~ integer ~ "," ~ integer ~ ")" }
+pattern_tokenizer = { kw_pattern ~ "(" ~ string ~ ")" }
+
+filters_clause = { kw_FILTERS ~ "[" ~ filter_spec ~ ("," ~ filter_spec)* ~ "]" }
+
+filter_spec = {
+    kw_lowercase |
+    kw_ascii_folding |
+    stemmer_filter |
+    stopwords_filter |
+    length_filter
+}
+
+stemmer_filter = { kw_stemmer ~ "(" ~ ident ~ ")" }
+stopwords_filter = { kw_stopwords ~ "(" ~ ident ~ ")" }
+length_filter = { kw_length ~ "(" ~ integer ~ "," ~ integer ~ ")" }
+
+// DROP ANALYZER name
+drop_analyzer_stmt = {
+    kw_DROP ~ kw_ANALYZER ~ ident
+}
+
+// ========================
+// Section 10a: Auth DDL
+// ========================
+
+// --- Auth statements ---
+create_user_stmt    = { kw_CREATE ~ kw_USER ~ string ~ kw_PASSWORD ~ string }
+drop_user_stmt      = { kw_DROP ~ kw_USER ~ string }
+alter_user_stmt     = {
+    kw_ALTER ~ kw_USER ~ string ~ (
+        alter_user_password
+      | alter_user_set
+      | alter_user_remove
+    )
+}
+alter_user_password = { kw_PASSWORD ~ string }
+alter_user_set      = { kw_SET ~ attr_pair_list }
+alter_user_remove   = { kw_REMOVE ~ ident_list }
+
+create_api_key_stmt = { kw_CREATE ~ kw_API ~ kw_KEY ~ string ~ kw_FOR ~ kw_USER ~ string }
+drop_api_key_stmt   = { kw_DROP ~ kw_API ~ kw_KEY ~ string }
+
+create_policy_stmt  = {
+    kw_CREATE ~ kw_POLICY ~ ident
+    ~ kw_WHEN ~ policy_condition ~ (kw_AND ~ policy_condition)*
+    ~ policy_effect
+}
+drop_policy_stmt    = { kw_DROP ~ kw_POLICY ~ ident }
+
+alter_collection_attrs_stmt = {
+    kw_ALTER ~ kw_COLLECTION ~ ident ~ (
+        alter_coll_set | alter_coll_remove
+    )
+}
+alter_coll_set    = { kw_SET ~ attr_pair_list }
+alter_coll_remove = { kw_REMOVE ~ ident_list }
+
+// Helpers
+attr_pair_list      = { attr_pair ~ ("," ~ attr_pair)* }
+attr_pair           = { ident ~ "=" ~ string }
+ident_list          = { ident ~ ("," ~ ident)* }
+policy_condition    = { policy_field ~ policy_op ~ policy_value }
+policy_field        = { ident ~ "." ~ ident | kw_ACTION }
+policy_op           = { "!=" | "=" | kw_IN }
+policy_value        = { "(" ~ string ~ ("," ~ string)* ~ ")" | string }
+policy_effect       = { kw_ALLOW | kw_DENY }
+
+// ========================
+// Section 11: RELATE Statement
+// ========================
+
+relate_stmt = {
+    kw_RELATE ~ relate_source ~ "->" ~ ident ~ "->" ~ relate_source
+    ~ relate_data? ~ return_clause?
+}
+
+relate_source = {
+    relate_subquery | relate_array | relate_target
+}
+
+relate_subquery = { "(" ~ select_stmt ~ ")" }
+relate_array = { "[" ~ relate_target ~ ("," ~ relate_target)* ~ "]" }
+
+// Target for RELATE: uses a key that stops before "->" arrow
+relate_target = { collection ~ (":" ~ relate_key)? }
+relate_key = { quoted_key | relate_unquoted_key }
+// Unquoted key that doesn't consume "->" (no dash allowed to avoid ambiguity)
+relate_unquoted_key = @{ (LETTER | NUMBER | "_")+ }
+
+relate_data = { relate_set | relate_content }
+relate_set = { kw_SET ~ assignments }
+relate_content = { kw_CONTENT ~ object }
+
+return_clause = { kw_RETURN ~ return_value }
+return_value = { return_none | return_before | return_after | projection_item_list }
+return_none = { kw_NONE }
+return_before = { kw_BEFORE }
+return_after = { kw_AFTER }
+
+// ========================
+// Section 12: Graph Traversal
+// ========================
+
+// Traversal expression in SELECT: ->follows->user, <-likes{1..3}<-*
+traversal_expr = { traversal_start ~ traversal_step* ~ traversal_end? }
+
+// First step must have direction, optionally with field selection for edge projections
+traversal_start = { traversal_direction ~ traversal_label_part ~ traversal_depth? ~ traversal_field_access? }
+
+// Optional field access on edges: .{fields} or .field
+traversal_field_access = { "." ~ (traversal_field_selection | field_path) }
+
+// Subsequent steps - use positive lookahead to ensure another traversal follows
+// This prevents greedy matching from consuming the final target (e.g., ->product in ->viewed->product)
+traversal_step = { traversal_direction ~ traversal_label_part ~ traversal_depth? ~ &traversal_direction }
+
+// Final target (optional): ->user, ->user.*, ->user.name
+traversal_end = { traversal_direction ~ traversal_node_target }
+
+traversal_direction = { "<->" | "->" | "<-" }
+
+// Label with optional filter: follows, *, (follows WHERE since > 2024)
+traversal_label_part = {
+    traversal_filtered_label | traversal_wildcard | traversal_simple_label
+}
+
+traversal_simple_label = { ident }
+traversal_wildcard = { "*" }
+traversal_filtered_label = { "(" ~ ident ~ kw_WHERE ~ expr ~ ")" }
+
+// Depth specification: {3}, {1..5}, {..}, {1..}, {..5}
+traversal_depth = { "{" ~ depth_spec ~ traversal_mode? ~ "}" }
+
+depth_spec = {
+    integer ~ ".." ~ integer |    // {1..5}
+    integer ~ ".." |              // {1..}
+    ".." ~ integer |              // {..5}
+    ".." |                        // {..}
+    integer                       // {3}
+}
+
+traversal_mode = { kw_ALL }
+
+// Node target with optional field access or multi-field selection
+traversal_node_target = {
+    ident ~ ".*" |                              // user.*
+    ident ~ "." ~ traversal_field_selection |   // user.{name, email}
+    ident ~ "." ~ field_path |                  // user.name or user.address.city
+    ident                                       // user
+}
+
+// Multi-field selection for traversal: {field1, alias: field2, ...}
+traversal_field_selection = {
+    "{" ~ traversal_field_item ~ ("," ~ traversal_field_item)* ~ "}"
+}
+
+// Single field item: "quantity" or "grams: quantity" or "name: to.name"
+traversal_field_item = {
+    (ident ~ ":")? ~ field_path
+}

@@ -1,0 +1,112 @@
+syntax = "proto3";
+package stellar.v1;
+
+import "proto/stellar/v1/common.proto";
+
+service QueryService {
+  rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+  rpc ExecuteStream(ExecuteRequest) returns (stream StreamRow);
+  rpc GetOperation(GetOperationRequest) returns (DdlOperation);
+  rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
+  rpc CancelOperation(CancelOperationRequest) returns (DdlOperation);
+}
+
+message ExecuteRequest {
+  string query = 1;
+  optional string session_id = 2;
+  // Stellar duration. Explicit "0" disables only the query timeout; the
+  // server DB deadline and grpc-timeout transport deadline still apply.
+  optional string query_timeout = 3;
+}
+
+message ExecuteResponse {
+  repeated StatementResult results = 1;
+  int32 completed = 2;
+  optional BatchError error = 3;
+  string elapsed = 4;
+  optional DdlOperation operation = 5;
+}
+
+message StatementResult {
+  int32 statement_index = 1;
+  string statement_type = 2;
+  repeated RowData rows = 3;
+  optional int64 rows_affected = 4;
+  optional int32 count = 5;
+  optional string session_id = 6;
+}
+
+message RowData {
+  map<string, Value> fields = 1;
+}
+
+message BatchError {
+  int32 statement_index = 1;
+  string message = 2;
+  string code = 3;
+}
+
+message StreamRow {
+  oneof payload {
+    StatementHeader header = 1;
+    RowData row = 2;
+    StatementFooter footer = 3;
+    BatchError error = 4;
+  }
+  optional DdlOperation operation = 5;
+}
+
+message StatementHeader {
+  int32 statement_index = 1;
+  string statement_type = 2;
+  repeated string columns = 3;
+}
+
+message StatementFooter {
+  int32 statement_index = 1;
+  optional int64 rows_affected = 2;
+  optional int32 count = 3;
+  optional string session_id = 4;
+  string elapsed = 5;
+}
+
+message GetOperationRequest {
+  string operation_id = 1;
+}
+
+message ListOperationsRequest {
+  bool active_only = 1;
+  optional uint32 limit = 2;
+}
+
+message ListOperationsResponse {
+  repeated DdlOperation operations = 1;
+  uint32 count = 2;
+}
+
+message CancelOperationRequest {
+  string operation_id = 1;
+}
+
+message DdlOperationError {
+  string code = 1;
+  string message = 2;
+}
+
+message DdlOperation {
+  string operation_id = 1;
+  string operation_type = 2;
+  string database = 3;
+  string collection = 4;
+  string index_name = 5;
+  string index_type = 6;
+  string state = 7;
+  string phase = 8;
+  uint64 processed_items = 9;
+  uint64 total_items = 10;
+  double progress_percent = 11;
+  string created_at = 12;
+  optional string started_at = 13;
+  optional string finished_at = 14;
+  optional DdlOperationError error = 15;
+}

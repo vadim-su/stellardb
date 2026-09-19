@@ -1,0 +1,47 @@
+syntax = "proto3";
+package stellar.v1;
+
+import "google/protobuf/struct.proto";
+
+message Value {
+  oneof kind {
+    google.protobuf.NullValue null_value = 1;
+    bool bool_value = 2;
+    int64 int_value = 3;
+    double float_value = 4;
+    string string_value = 5;
+    bytes bytes_value = 6;
+    string decimal_value = 7;
+    int64 datetime_value = 8;
+    uint64 duration_value = 9;
+    ArrayValue array_value = 10;
+    ObjectValue object_value = 11;
+    string reference_value = 12;
+  }
+}
+
+message ArrayValue {
+  repeated Value values = 1;
+}
+
+message ObjectValue {
+  map<string, Value> fields = 1;
+}
+
+message Document {
+  string id = 1;
+  map<string, Value> fields = 2;
+}
+
+message Edge {
+  string id = 1;
+  string from = 2;
+  string to = 3;
+  string label = 4;
+  map<string, Value> fields = 5;
+}
+
+message PaginationRequest {
+  int32 limit = 1;
+  optional string after = 2;
+}
