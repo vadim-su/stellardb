@@ -1,7 +1,24 @@
 [package]
 name = "stellardb"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2024"
+description = "Documents, graphs, vectors, and full-text search. One Rust database. One query language."
+license = "MIT"
+repository = "https://github.com/vadim-su/stellardb"
+homepage = "https://github.com/vadim-su/stellardb"
+documentation = "https://docs.rs/stellardb"
+readme = "README.md"
+keywords = ["database", "graph", "vector", "full-text-search", "embedded"]
+categories = ["database", "database-implementations"]
+include = [
+    "/src",
+    "/proto",
+    "/station/dist",
+    "/build.rs",
+    "/Cargo.toml",
+    "/README.md",
+    "/LICENSE",
+]
 
 [[bin]]
 name = "stellar"

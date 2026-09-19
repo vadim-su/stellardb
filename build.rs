@@ -57,6 +57,16 @@ fn build_ui() -> Result<(), Box<dyn std::error::Error>> {
 
     let ui_dir = std::path::Path::new("station");
 
+    // The published crate ships a prebuilt `station/dist` and no UI sources.
+    // In that case there is nothing to build, and build.rs must not write into
+    // the (read-only) registry source directory.
+    if !ui_dir.join("package.json").exists() {
+        if ui_dir.join("dist").join("index.html").exists() {
+            return Ok(());
+        }
+        return Err("station/dist is missing and Station sources are not present".into());
+    }
+
     // Rerun if UI source changes
     println!("cargo:rerun-if-changed=station/src");
     println!("cargo:rerun-if-changed=station/index.html");
