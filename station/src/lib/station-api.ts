@@ -72,11 +72,19 @@ interface DatabaseStatsResponse {
   disk_size: number;
 }
 
+export interface StationExample {
+  title: string;
+  description?: string;
+  sql: string;
+}
+
 export interface StationSnapshot {
   capabilities: CapabilitiesResponse;
   collections: CollectionOverview[];
   /** `null` when the subject lacks MANAGE on the database. */
   stats: StatsResponse | null;
+  /** Operator-curated queries for this database (`--station-examples`). */
+  examples: StationExample[];
 }
 
 export interface StationQueryResult {
@@ -381,6 +389,22 @@ async function fetchDatabaseStats(
   return response.json() as Promise<DatabaseStatsResponse>;
 }
 
+async function fetchExamples(
+  connection: StationConnection,
+  database: string,
+  signal?: AbortSignal,
+): Promise<StationExample[]> {
+  const response = await fetch(`${connection.baseUrl}/v1/station/examples`, {
+    headers: headers(connection, database),
+    signal,
+  });
+  // Older servers have no endpoint; forbidden subjects get nothing rather than an error.
+  if (response.status === 403 || response.status === 404) return [];
+  if (!response.ok) throw await responseError(response);
+  const payload = await response.json() as { items: StationExample[] };
+  return payload.items;
+}
+
 export async function loadSnapshot(
   connection: StationConnection,
   database: string,
@@ -391,11 +415,12 @@ export async function loadSnapshot(
     database,
     token: connection.token,
   });
-  const [capabilities, collections, stats, databaseStats] = await Promise.all([
+  const [capabilities, collections, stats, databaseStats, examples] = await Promise.all([
     client.capabilities(signal),
     client.collections(["stats", "schema"], signal),
     fetchStats(connection, database, signal),
     fetchDatabaseStats(connection, database, signal),
+    fetchExamples(connection, database, signal),
   ]);
   return {
     capabilities,
@@ -410,6 +435,7 @@ export async function loadSnapshot(
         fts_indexes: databaseStats.fts_indexes,
       },
     } : null,
+    examples,
   };
 }
 

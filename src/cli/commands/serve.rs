@@ -45,6 +45,7 @@ pub async fn run(
     jwt_secret_file: Option<String>,
     jwt_ttl: u64,
     anonymous_user: Option<String>,
+    station_examples: Option<String>,
     max_db_concurrency: usize,
     db_deadline: String,
     index_build_chunk_size: usize,
@@ -194,6 +195,19 @@ pub async fn run(
         }
     }
 
+    let station_examples = match station_examples.as_deref() {
+        Some(path) => {
+            let examples = stellardb::server::station_examples::load(std::path::Path::new(path))
+                .map_err(|e| anyhow::anyhow!("--station-examples: {e}"))?;
+            tracing::info!(
+                databases = examples.len(),
+                "station examples loaded from {path}"
+            );
+            examples
+        }
+        None => Default::default(),
+    };
+
     let auth_service = Arc::new(auth_service);
 
     // Print startup banner (unless quiet)
@@ -225,6 +239,7 @@ pub async fn run(
             trusted_proxy_hops,
             login_body_limit,
             http_body_limit,
+            station_examples,
         },
     );
 
@@ -334,6 +349,7 @@ pub async fn run(
     _jwt_secret_file: Option<String>,
     _jwt_ttl: u64,
     _anonymous_user: Option<String>,
+    _station_examples: Option<String>,
     _max_db_concurrency: usize,
     _db_deadline: String,
     _index_build_chunk_size: usize,
@@ -1092,6 +1108,7 @@ mod tests {
             None,
             3600,
             None,
+            None,
             64,
             "60s".to_string(),
             4_096,
@@ -1147,6 +1164,7 @@ mod tests {
             None,
             None,
             3600,
+            None,
             None,
             64,
             "60s".to_string(),
@@ -1300,6 +1318,7 @@ mod tests {
             Some("weak".to_string()),
             None,
             3600,
+            None,
             None,
             64,
             "60s".to_string(),

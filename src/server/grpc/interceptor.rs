@@ -231,6 +231,7 @@ mod tests {
             query_timeout_default: None,
             trusted_proxy_hops: 0,
             auth: None,
+            station_examples: Default::default(),
         })
     }
 
@@ -257,6 +258,7 @@ mod tests {
             query_timeout_default: None,
             trusted_proxy_hops: 0,
             auth: Some(Arc::new(auth_service)),
+            station_examples: Default::default(),
         });
         (state, root_pw.unwrap())
     }

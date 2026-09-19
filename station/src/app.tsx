@@ -20,6 +20,7 @@ import {
   Search,
   Server,
   ShieldCheck,
+  Sparkles,
   Square,
   Table2,
   TerminalSquare,
@@ -55,6 +56,7 @@ import {
   type CreatedApiKey,
   type QueryStat,
   type StationConnection,
+  type StationExample,
   type StationQueryResult,
   type StationSnapshot,
 } from "./lib/station-api";
@@ -482,8 +484,8 @@ export function App() {
     setQueryTabs((tabs) => tabs.map((tab) => tab.id === activeQueryId ? { ...tab, ...patch } : tab));
   }
 
-  function addQuery(initialSql = "") {
-    const tab: QueryTab = { id: crypto.randomUUID(), name: `Query ${queryTabs.length + 1}`, sql: initialSql, result: null, error: null };
+  function addQuery(initialSql = "", name?: string) {
+    const tab: QueryTab = { id: crypto.randomUUID(), name: name ?? `Query ${queryTabs.length + 1}`, sql: initialSql, result: null, error: null };
     setQueryTabs((tabs) => [...tabs, tab]);
     setActiveQueryId(tab.id);
   }
@@ -698,6 +700,8 @@ export function App() {
               onActiveChange={setActiveQueryId}
               onSqlChange={(sql) => updateActiveQuery({ sql, error: null })}
               onAdd={() => addQuery()}
+              onOpenExample={(example) => addQuery(example.sql, example.title)}
+              examples={snapshot?.examples ?? []}
               onClose={closeQuery}
               database={database}
               running={queryRunning}
@@ -1153,6 +1157,8 @@ interface QueryWorkspaceProps {
   onRun: (sqlOverride?: string) => void;
   onCancel: () => void;
   collections: CollectionOverview[];
+  examples: StationExample[];
+  onOpenExample: (example: StationExample) => void;
 }
 
 function QueryWorkspace({
@@ -1167,6 +1173,8 @@ function QueryWorkspace({
   onRun,
   onCancel,
   collections,
+  examples,
+  onOpenExample,
 }: QueryWorkspaceProps) {
   const active = tabs.find((tab) => tab.id === activeId) ?? tabs[0]!;
   const [schemaCollapsed, setSchemaCollapsed] = useState(true);
@@ -1214,6 +1222,17 @@ function QueryWorkspace({
             ))}
           </div>
           <button className="new-query-vertical" onClick={onAdd}><Plus size={13} /> New query</button>
+          {examples.length > 0 && (
+            <div className="query-examples" aria-label="Example queries">
+              <header><span>Examples</span></header>
+              {examples.map((example) => (
+                <button key={example.title} onClick={() => onOpenExample(example)} title={example.description ?? example.sql}>
+                  <Sparkles size={12} />
+                  <span><strong>{example.title}</strong>{example.description && <small>{example.description}</small>}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </aside>
         <section className="editor-stack">
           <div className="editor-tabs">

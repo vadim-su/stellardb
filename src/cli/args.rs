@@ -102,6 +102,10 @@ pub enum Commands {
         #[arg(long, env = "STELLAR_ANONYMOUS_USER")]
         anonymous_user: Option<String>,
 
+        /// JSON file with example queries per database, shown in Station's query workspace.
+        #[arg(long, env = "STELLAR_STATION_EXAMPLES")]
+        station_examples: Option<String>,
+
         /// Maximum number of concurrent blocking database operations
         #[arg(long, env = "STELLARDB_MAX_DB_CONCURRENCY", default_value_t = 64)]
         max_db_concurrency: usize,

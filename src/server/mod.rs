@@ -5,6 +5,7 @@ pub mod ddl_jobs;
 pub mod grpc;
 pub mod metrics;
 pub mod serialize;
+pub mod station_examples;
 #[cfg(feature = "tls")]
 pub mod tls;
 #[cfg(feature = "ui")]
@@ -52,6 +53,7 @@ pub struct AppState {
     pub query_timeout_default: Option<Duration>,
     pub trusted_proxy_hops: usize,
     pub auth: Option<Arc<crate::auth::AuthService>>,
+    pub station_examples: station_examples::StationExamples,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -220,6 +222,7 @@ pub struct HttpServerConfig {
     pub trusted_proxy_hops: usize,
     pub login_body_limit: usize,
     pub http_body_limit: usize,
+    pub station_examples: station_examples::StationExamples,
 }
 
 impl Default for HttpServerConfig {
@@ -231,6 +234,7 @@ impl Default for HttpServerConfig {
             trusted_proxy_hops: 0,
             login_body_limit: 16 * 1024,
             http_body_limit: 10 * 1024 * 1024,
+            station_examples: station_examples::StationExamples::new(),
         }
     }
 }
@@ -658,6 +662,7 @@ pub fn create_router_with_config(
         trusted_proxy_hops,
         login_body_limit,
         http_body_limit,
+        station_examples,
     } = config;
     let sessions = Arc::new(SessionManager::new(SessionConfig::default()));
     let metrics = Arc::new(MetricsCollector::new(metrics));
@@ -674,6 +679,7 @@ pub fn create_router_with_config(
         query_timeout_default,
         trusted_proxy_hops,
         auth,
+        station_examples,
     });
 
     let router = Router::new()
@@ -725,6 +731,10 @@ pub fn create_router_with_config(
             post(login_handler).layer(DefaultBodyLimit::max(login_body_limit)),
         )
         .route("/v1/auth/me", get(auth_me_handler))
+        .route(
+            "/v1/station/examples",
+            get(station_examples::examples_handler),
+        )
         .route(
             "/v1/admin/users",
             get(list_managed_users_handler).post(create_managed_user_handler),
@@ -921,7 +931,7 @@ async fn operation_cancel_handler(
     }
 }
 
-fn extract_database_name(headers: &HeaderMap) -> Result<&str, AppError> {
+pub(crate) fn extract_database_name(headers: &HeaderMap) -> Result<&str, AppError> {
     headers
         .get("X-Database")
         .and_then(|v| v.to_str().ok())
