@@ -30,20 +30,18 @@ pub async fn auth_middleware(
         None => return next.run(request).await, // Auth not configured (e.g., tests)
     };
 
-    let token = match extract_bearer_token(request.headers()) {
-        Some(t) => t.to_string(),
-        None => {
-            return (
-                axum::http::StatusCode::UNAUTHORIZED,
-                axum::Json(json!({"error": "Authorization header required"})),
-            )
-                .into_response();
-        }
-    };
+    let token = extract_bearer_token(request.headers()).map(str::to_string);
+    if token.is_none() && auth.anonymous_user().is_none() {
+        return (
+            axum::http::StatusCode::UNAUTHORIZED,
+            axum::Json(json!({"error": "Authorization header required"})),
+        )
+            .into_response();
+    }
 
     let authentication = match state
         .admission
-        .run_db(move || auth.authenticate_resolved(&token))
+        .run_db(move || auth.authenticate_request(token.as_deref()))
         .await
     {
         Ok(result) => result,
@@ -57,11 +55,14 @@ pub async fn auth_middleware(
             request.extensions_mut().insert(resolved);
             next.run(request).await
         }
-        Err(_) => (
-            axum::http::StatusCode::UNAUTHORIZED,
-            axum::Json(json!({"error": "invalid credentials"})),
-        )
-            .into_response(),
+        Err(error) => {
+            tracing::debug!(error, "request authentication failed");
+            (
+                axum::http::StatusCode::UNAUTHORIZED,
+                axum::Json(json!({"error": "invalid credentials"})),
+            )
+                .into_response()
+        }
     }
 }
 

@@ -62,6 +62,89 @@ async fn invalid_jwt_token_returns_401() {
     assert_eq!(res.status(), 401);
 }
 
+// ─── Anonymous Access ───
+
+async fn anonymous_sql(addr: std::net::SocketAddr, query: &str) -> reqwest::Response {
+    reqwest::Client::new()
+        .post(format!("http://{}/sql", addr))
+        .header("X-Database", "test")
+        .json(&json!({"query": query}))
+        .send()
+        .await
+        .unwrap()
+}
+
+#[tokio::test]
+async fn anonymous_user_policies_govern_credential_less_requests() {
+    let (addr, root_pw, _tmp) = common::spawn_server_with_anonymous_user("guest").await;
+    let root_token = common::login(addr, "root", &root_pw).await;
+
+    // Anonymous user not created yet: still rejected.
+    assert_eq!(anonymous_sql(addr, "SELECT 1").await.status(), 401);
+
+    common::sql_with_auth(addr, &root_token, "CREATE USER 'guest' PASSWORD 'unused'").await;
+    common::sql_with_auth(addr, &root_token, "ALTER USER 'guest' SET role = 'public'").await;
+    common::sql_with_auth(
+        addr,
+        &root_token,
+        "CREATE POLICY public_read WHEN subject.role = 'public' AND action = 'SELECT' AND resource.database = 'test' ALLOW",
+    )
+    .await;
+    common::auth_client(&root_token)
+        .post(format!("http://{}/databases", addr))
+        .json(&json!({"name": "private"}))
+        .send()
+        .await
+        .unwrap();
+    common::sql_with_auth(addr, &root_token, "INSERT INTO items {name: 'a'}").await;
+
+    let res = anonymous_sql(addr, "SELECT * FROM items").await;
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    assert!(body["error"].is_null(), "anonymous read failed: {body:?}");
+    assert_eq!(body["completed"], 1);
+
+    let res = anonymous_sql(addr, "INSERT INTO items {name: 'b'}").await;
+    assert_eq!(res.status(), 200);
+    let body: serde_json::Value = res.json().await.unwrap();
+    let err_msg = body["error"]["message"].as_str().unwrap_or("");
+    assert!(
+        err_msg.contains("Access denied"),
+        "anonymous write allowed: {body:?}"
+    );
+
+    // An invalid token is never downgraded to anonymous.
+    let res = common::auth_client("invalid.jwt.token")
+        .post(format!("http://{}/sql", addr))
+        .json(&json!({"query": "SELECT 1"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(res.status(), 401);
+
+    let me: serde_json::Value = reqwest::Client::new()
+        .get(format!("http://{}/v1/auth/me", addr))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(me["username"], "guest");
+    assert_eq!(me["authMethod"], "anonymous");
+
+    // Database discovery is filtered to what the anonymous subject may read.
+    let databases: serde_json::Value = reqwest::Client::new()
+        .get(format!("http://{}/databases", addr))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(databases, json!(["test"]));
+}
+
 // ─── User Management ───
 
 #[tokio::test]

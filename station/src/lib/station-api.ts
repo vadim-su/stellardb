@@ -75,7 +75,8 @@ interface DatabaseStatsResponse {
 export interface StationSnapshot {
   capabilities: CapabilitiesResponse;
   collections: CollectionOverview[];
-  stats: StatsResponse;
+  /** `null` when the subject lacks MANAGE on the database. */
+  stats: StatsResponse | null;
 }
 
 export interface StationQueryResult {
@@ -94,7 +95,7 @@ export interface StationQueryResult {
 export interface IdentityInfo {
   username: string;
   attributes: Record<string, string>;
-  authMethod: "credentials" | "apiKey";
+  authMethod: "anonymous" | "credentials" | "apiKey";
   credentialName: string | null;
 }
 
@@ -116,6 +117,8 @@ export interface ManagedApiKey {
 
 export interface AccessSnapshot {
   identity: IdentityInfo;
+  /** `false` when the subject lacks global MANAGE; lists are then empty. */
+  admin: boolean;
   users: ManagedUser[];
   apiKeys: ManagedApiKey[];
 }
@@ -169,6 +172,13 @@ async function responseError(response: Response): Promise<Error> {
   return new Error(`StellarDB returned HTTP ${response.status}.`);
 }
 
+class ForbiddenError extends Error {
+  constructor(cause: Error) {
+    super(cause.message);
+    this.name = "ForbiddenError";
+  }
+}
+
 async function adminRequest(
   connection: StationConnection,
   path: string,
@@ -180,6 +190,7 @@ async function adminRequest(
     ...init,
     headers: requestHeaders,
   });
+  if (response.status === 403) throw new ForbiddenError(await responseError(response));
   if (!response.ok) throw await responseError(response);
   return response;
 }
@@ -210,13 +221,26 @@ export async function loadAccessSnapshot(
   connection: StationConnection,
   signal?: AbortSignal,
 ): Promise<AccessSnapshot> {
-  const [identityResponse, users, apiKeys] = await Promise.all([
+  const [identityResponse, admin] = await Promise.all([
     adminRequest(connection, "/v1/auth/me", { signal }),
-    loadAdminPages<ManagedUser>(connection, "/v1/admin/users", signal),
-    loadAdminPages<ManagedApiKey>(connection, "/v1/admin/api-keys", signal),
+    Promise.all([
+      loadAdminPages<ManagedUser>(connection, "/v1/admin/users", signal),
+      loadAdminPages<ManagedApiKey>(connection, "/v1/admin/api-keys", signal),
+    ]).then(
+      ([users, apiKeys]) => ({ users, apiKeys }),
+      (error: unknown) => {
+        if (error instanceof ForbiddenError) return null;
+        throw error;
+      },
+    ),
   ]);
   const identity = await identityResponse.json() as IdentityInfo;
-  return { identity, users, apiKeys };
+  return {
+    identity,
+    admin: admin !== null,
+    users: admin?.users ?? [],
+    apiKeys: admin?.apiKeys ?? [],
+  };
 }
 
 export async function createManagedUser(
@@ -333,11 +357,12 @@ async function fetchStats(
   connection: StationConnection,
   database: string,
   signal?: AbortSignal,
-): Promise<StatsResponse> {
+): Promise<StatsResponse | null> {
   const response = await fetch(`${connection.baseUrl}/stats`, {
     headers: headers(connection, database),
     signal,
   });
+  if (response.status === 403) return null;
   if (!response.ok) throw await responseError(response);
   return response.json() as Promise<StatsResponse>;
 }
@@ -346,11 +371,12 @@ async function fetchDatabaseStats(
   connection: StationConnection,
   database: string,
   signal?: AbortSignal,
-): Promise<DatabaseStatsResponse> {
+): Promise<DatabaseStatsResponse | null> {
   const response = await fetch(`${connection.baseUrl}/databases/${encodeURIComponent(database)}/stats`, {
     headers: headers(connection),
     signal,
   });
+  if (response.status === 403) return null;
   if (!response.ok) throw await responseError(response);
   return response.json() as Promise<DatabaseStatsResponse>;
 }
@@ -374,7 +400,7 @@ export async function loadSnapshot(
   return {
     capabilities,
     collections: collections.collections,
-    stats: {
+    stats: stats && databaseStats ? {
       ...stats,
       storage: {
         disk_size_bytes: databaseStats.disk_size,
@@ -383,7 +409,7 @@ export async function loadSnapshot(
         vector_indexes: databaseStats.vector_indexes,
         fts_indexes: databaseStats.fts_indexes,
       },
-    },
+    } : null,
   };
 }
 

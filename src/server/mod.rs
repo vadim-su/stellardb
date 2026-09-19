@@ -1765,19 +1765,46 @@ async fn list_edges_in_handler(
 // --- Database management handlers ---
 
 /// GET /databases
+///
+/// Global `MANAGE` sees every database; any other subject sees the databases
+/// it is allowed to `SELECT` from, so read-only and anonymous clients can
+/// still discover what they may query.
 async fn list_databases_handler(
     State(state): State<Arc<AppState>>,
     subject: Option<axum::Extension<Subject>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    authorize_request(
-        &state,
-        subject.as_ref().map(|value| &value.0),
-        Action::Manage,
-        "",
-        None,
-    )
-    .await?;
-    Ok(Json(json!(state.namespace.list_databases())))
+    let subject = subject.as_ref().map(|value| &value.0);
+    let databases = state.namespace.list_databases();
+    if authorize_request(&state, subject, Action::Manage, "", None)
+        .await
+        .is_ok()
+    {
+        return Ok(Json(json!(databases)));
+    }
+    let auth = state.auth.clone();
+    let subject = subject.cloned();
+    let readable = state
+        .admission
+        .run_db(move || {
+            let authorization = auth
+                .as_deref()
+                .map(|service| service as &dyn crate::auth::AuthorizationProvider);
+            databases
+                .into_iter()
+                .filter(|database| {
+                    crate::auth::authorize(
+                        authorization,
+                        subject.as_ref(),
+                        Action::Select,
+                        database,
+                        None,
+                    )
+                    .is_ok()
+                })
+                .collect::<Vec<_>>()
+        })
+        .await?;
+    Ok(Json(json!(readable)))
 }
 
 /// POST /databases
@@ -2027,10 +2054,9 @@ async fn auth_me_handler(
     let token = headers
         .get(AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .unwrap_or_default();
-    let is_api_key = crate::auth::api_key::is_api_key(token);
-    let credential_name = if is_api_key {
+        .and_then(|value| value.strip_prefix("Bearer "));
+    let is_api_key = token.is_some_and(crate::auth::api_key::is_api_key);
+    let credential_name = if let Some(token) = token.filter(|_| is_api_key) {
         let auth = state
             .auth
             .clone()
@@ -2043,13 +2069,18 @@ async fn auth_me_handler(
     } else {
         None
     };
+    let auth_method = match token {
+        None => "anonymous",
+        Some(_) if is_api_key => "apiKey",
+        Some(_) => "credentials",
+    };
 
     Ok((
         [(CACHE_CONTROL, "no-store"), (PRAGMA, "no-cache")],
         Json(json!({
             "username": subject.user_id,
             "attributes": subject.attributes,
-            "authMethod": if is_api_key { "apiKey" } else { "credentials" },
+            "authMethod": auth_method,
             "credentialName": credential_name,
         })),
     ))

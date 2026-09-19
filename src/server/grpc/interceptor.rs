@@ -35,7 +35,8 @@ pub async fn extract_database(
 
 /// Extract and authenticate the subject from gRPC metadata.
 /// Returns `Ok(None)` if auth is not configured (i.e. `state.auth` is `None`).
-/// Returns `Err(Status::unauthenticated)` if the token is missing or invalid.
+/// A missing token resolves to the configured anonymous user; otherwise
+/// returns `Err(Status::unauthenticated)` when the token is missing or invalid.
 pub(crate) async fn extract_subject(
     state: &AppState,
     metadata: &tonic::metadata::MetadataMap,
@@ -49,16 +50,21 @@ pub(crate) async fn extract_subject(
         .get("authorization")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
-        .ok_or_else(|| Status::unauthenticated("Authorization metadata required"))?
-        .to_string();
+        .map(str::to_string);
+    if token.is_none() && auth.anonymous_user().is_none() {
+        return Err(Status::unauthenticated("Authorization metadata required"));
+    }
 
     state
         .admission
-        .run_db(move || auth.authenticate_resolved(&token))
+        .run_db(move || auth.authenticate_request(token.as_deref()))
         .await
         .map_err(admission_error_to_status)?
         .map(Some)
-        .map_err(|_| Status::unauthenticated("invalid credentials"))
+        .map_err(|error| {
+            tracing::debug!(error, "request authentication failed");
+            Status::unauthenticated("invalid credentials")
+        })
 }
 
 /// Authorize a gRPC request using the shared transport-independent policy boundary.

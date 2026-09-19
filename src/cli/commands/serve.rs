@@ -44,6 +44,7 @@ pub async fn run(
     jwt_secret_arg: Option<String>,
     jwt_secret_file: Option<String>,
     jwt_ttl: u64,
+    anonymous_user: Option<String>,
     max_db_concurrency: usize,
     db_deadline: String,
     index_build_chunk_size: usize,
@@ -162,6 +163,12 @@ pub async fn run(
     let (auth_service, root_password) =
         stellardb::auth::AuthService::init(system_db, &jwt_secret, jwt_ttl)
             .map_err(|e| anyhow::anyhow!(e))?;
+    let auth_service = match anonymous_user.as_deref() {
+        Some(username) => auth_service
+            .with_anonymous_user(username)
+            .map_err(|e| anyhow::anyhow!("--anonymous-user: {e}"))?,
+        None => auth_service,
+    };
 
     if let Some(pw) = root_password
         && !quiet
@@ -171,6 +178,20 @@ pub async fn run(
         println!("  Root password (shown only once): {}", pw);
         println!("========================================");
         println!();
+    }
+
+    if let Some(username) = auth_service.anonymous_user() {
+        if auth_service
+            .anonymous_user_exists()
+            .map_err(|e| anyhow::anyhow!(e))?
+        {
+            tracing::info!(username, "anonymous access enabled");
+        } else {
+            tracing::warn!(
+                username,
+                "anonymous access enabled but the user does not exist; unauthenticated requests are rejected until it is created"
+            );
+        }
     }
 
     let auth_service = Arc::new(auth_service);
@@ -312,6 +333,7 @@ pub async fn run(
     _jwt_secret_arg: Option<String>,
     _jwt_secret_file: Option<String>,
     _jwt_ttl: u64,
+    _anonymous_user: Option<String>,
     _max_db_concurrency: usize,
     _db_deadline: String,
     _index_build_chunk_size: usize,
@@ -1069,6 +1091,7 @@ mod tests {
             None,
             None,
             3600,
+            None,
             64,
             "60s".to_string(),
             4_096,
@@ -1124,6 +1147,7 @@ mod tests {
             None,
             None,
             3600,
+            None,
             64,
             "60s".to_string(),
             4_096,
@@ -1276,6 +1300,7 @@ mod tests {
             Some("weak".to_string()),
             None,
             3600,
+            None,
             64,
             "60s".to_string(),
             4_096,

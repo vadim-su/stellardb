@@ -40,6 +40,8 @@ pub struct AuthService {
     jwt_config: JwtConfig,
     policy_engine: PolicyEngine,
     user_state_lock: RwLock<()>,
+    /// Username that requests without credentials are resolved to.
+    anonymous_user: Option<String>,
 }
 
 impl AuthService {
@@ -60,6 +62,7 @@ impl AuthService {
             jwt_config,
             policy_engine,
             user_state_lock: RwLock::new(()),
+            anonymous_user: None,
         };
 
         let root_password = service.bootstrap()?;
@@ -68,6 +71,40 @@ impl AuthService {
         service.reload_policies()?;
 
         Ok((service, root_password))
+    }
+
+    /// Resolve requests that carry no credentials to `username`.
+    ///
+    /// The user is an ordinary managed user: its attributes drive policy
+    /// evaluation exactly as for an authenticated session, so operators grant
+    /// public read access by attaching an `ALLOW ... SELECT` policy to it.
+    /// `root` is rejected because it bypasses every policy.
+    pub fn with_anonymous_user(mut self, username: &str) -> Result<Self, String> {
+        let username = username.trim();
+        if username.is_empty() {
+            return Err("anonymous user name cannot be empty".to_string());
+        }
+        if username == "root" {
+            return Err("anonymous user cannot be 'root'".to_string());
+        }
+        self.anonymous_user = Some(username.to_string());
+        Ok(self)
+    }
+
+    /// Username configured for credential-less requests, if any.
+    pub fn anonymous_user(&self) -> Option<&str> {
+        self.anonymous_user.as_deref()
+    }
+
+    /// Whether the configured anonymous user currently exists.
+    pub fn anonymous_user_exists(&self) -> Result<bool, String> {
+        let Some(username) = self.anonymous_user() else {
+            return Ok(false);
+        };
+        self.system_db
+            .get_document("users", username)
+            .map(|doc| doc.is_some())
+            .map_err(|e| format!("failed to load anonymous user: {e}"))
     }
 
     /// Bootstrap the system: create a root user if no users exist.
@@ -195,12 +232,46 @@ impl AuthService {
             .map(ResolvedSubject::into_subject)
     }
 
+    /// Resolve a request's optional bearer token to a subject.
+    ///
+    /// A missing token resolves to the configured anonymous user; without one
+    /// it is rejected. An invalid token is never downgraded to anonymous.
+    pub(crate) fn authenticate_request(
+        &self,
+        token: Option<&str>,
+    ) -> Result<ResolvedSubject, String> {
+        match token {
+            Some(token) => self.authenticate_resolved(token),
+            None => self.authenticate_anonymous(),
+        }
+    }
+
     pub(crate) fn authenticate_resolved(&self, token: &str) -> Result<ResolvedSubject, String> {
         if api_key::is_api_key(token) {
             self.authenticate_api_key(token)
         } else {
             self.authenticate_jwt(token)
         }
+    }
+
+    fn authenticate_anonymous(&self) -> Result<ResolvedSubject, String> {
+        let username = self
+            .anonymous_user()
+            .ok_or_else(|| "anonymous access is not enabled".to_string())?;
+        let user_doc = self
+            .system_db
+            .get_document("users", username)
+            .map_err(|e| format!("failed to load anonymous user: {e}"))?
+            .ok_or_else(|| format!("anonymous user '{username}' does not exist"))?;
+        let principal_identity = extract_user_identity(&user_doc)
+            .map_err(|e| format!("anonymous user '{username}': {e}"))?;
+        Ok(ResolvedSubject::new(
+            Subject {
+                user_id: username.to_string(),
+                attributes: extract_attributes(&user_doc),
+            },
+            principal_identity.to_string(),
+        ))
     }
 
     /// Verify a JWT token and resolve its immutable server-side identity.

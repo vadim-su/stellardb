@@ -7,7 +7,6 @@ import {
   LockKeyhole,
   Plus,
   RefreshCw,
-  ShieldCheck,
   Trash2,
   UserRound,
   UsersRound,
@@ -153,9 +152,8 @@ export function StationAccess({
     <div className="view access-view">
       <div className="access-titlebar">
         <div>
-          <p className="eyebrow"><ShieldCheck size={13} /> ACCESS CONTROL</p>
-          <h1>Control who gets in</h1>
-          <p>Manage identities and credentials without exposing the private system database.</p>
+          <h1>Access</h1>
+          <p>Users, API keys and the identity of this connection.</p>
         </div>
         <button className="secondary-button" onClick={onRefresh} disabled={loading}>
           <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
@@ -171,7 +169,9 @@ export function StationAccess({
             <span>
               {snapshot.identity.authMethod === "apiKey"
                 ? `API key · ${snapshot.identity.credentialName ?? "legacy credential"}`
-                : "Username & password session"}
+                : snapshot.identity.authMethod === "anonymous"
+                  ? "Anonymous · server-assigned user"
+                  : "Username & password session"}
             </span>
           </div>
           <span className="access-live"><i /> AUTHENTICATED</span>
@@ -186,6 +186,11 @@ export function StationAccess({
         </div>
       )}
 
+      {snapshot && !snapshot.admin ? (
+        <p className="metrics-unavailable">
+          Managing users and API keys requires global MANAGE permission.
+        </p>
+      ) : (
       <section className="station-panel access-panel">
         <header className="access-panel-header">
           <div className="access-tabs">
@@ -283,6 +288,7 @@ export function StationAccess({
           </div>
         )}
       </section>
+      )}
 
       {dialog && (
         <AccessDialogPanel
@@ -355,7 +361,6 @@ export function StationAccess({
         <div className="access-dialog-overlay" role="presentation">
           <section className="access-secret-dialog" role="dialog" aria-modal="true" aria-labelledby="secret-title">
             <div className="secret-success"><Check size={20} /></div>
-            <p className="eyebrow">ONE-TIME SECRET</p>
             <h2 id="secret-title">API key created</h2>
             <p>Copy this value now. StellarDB will never return it again.</p>
             <code>{createdKey.secret}</code>
@@ -363,7 +368,7 @@ export function StationAccess({
               {copied ? <Check size={15} /> : <Copy size={15} />}
               {copied ? "Copied" : "Copy API key"}
             </button>
-            <div className="secret-warning"><EyeOff size={14} /> The secret exists only in this dialog and is not saved by Station.</div>
+            <div className="secret-warning"><EyeOff size={14} /> The secret is shown once and is not saved anywhere.</div>
             <button className="secret-close" onClick={closeSecret}>
               {copied ? "Done" : "Close without copying"}
             </button>

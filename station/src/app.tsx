@@ -5,7 +5,6 @@ import {
   Check,
   CircleAlert,
   Code2,
-  Command,
   Database,
   EyeOff,
   Gauge,
@@ -21,7 +20,6 @@ import {
   Search,
   Server,
   ShieldCheck,
-  Sparkles,
   Square,
   Table2,
   TerminalSquare,
@@ -658,10 +656,6 @@ export function App() {
             onClick={() => setView("access")}
           />
         </div>
-        <div className="rail-orbit" aria-hidden="true">
-          <span className="orbit-dot" />
-          <span>STN–01</span>
-        </div>
       </aside>
 
       <main className="station-main">
@@ -732,15 +726,11 @@ export function App() {
 function StationBoot({ endpoint }: { endpoint: string }) {
   return (
     <div className="station-boot">
-      <div className="boot-mark" aria-hidden="true">
-        <span />
-      </div>
+      <LoaderCircle size={28} className="spin" aria-hidden="true" />
       <div>
-        <p className="eyebrow">STELLARDB STATION</p>
-        <h1>Establishing link</h1>
-        <p>Contacting {endpoint}</p>
+        <h1>Connecting</h1>
+        <p>{endpoint}</p>
       </div>
-      <div className="boot-track"><span /></div>
     </div>
   );
 }
@@ -879,32 +869,23 @@ function Overview({
     <div className="view overview-view">
       <section className="overview-hero">
         <div className="hero-copy">
-          <p className="eyebrow"><Sparkles size={13} /> SYSTEM OVERVIEW</p>
-          <h1>Everything in orbit</h1>
+          <h1>{database}</h1>
           <p className="hero-description">
-            Station is linked to <strong>{shortEndpoint(connection.displayUrl ?? connection.baseUrl)}</strong> and
-            watching <strong>{database}</strong> in real time.
+            <strong>{shortEndpoint(connection.displayUrl ?? connection.baseUrl)}</strong>
+            {" · "}
+            <strong>v{snapshot?.capabilities.version ?? "—"}</strong>
+            {" · "}
+            <strong>{collections.length} collections</strong>
           </p>
           <div className="hero-actions">
             <button className="primary-button" onClick={() => onOpenQuery()}>
-              <TerminalSquare size={16} /> Open query console
+              <TerminalSquare size={16} /> Open query
               <ArrowUpRight size={15} />
             </button>
             <button className="secondary-button" onClick={onRefresh} disabled={loading}>
               <RefreshCw size={15} className={loading ? "spin" : ""} /> Refresh
             </button>
           </div>
-        </div>
-        <div className="orbit-telemetry" aria-label="Station telemetry">
-          <div className="orbit-ring orbit-ring-a" />
-          <div className="orbit-ring orbit-ring-b" />
-          <div className="orbit-core">
-            <span className="core-value">{collections.length}</span>
-            <span className="core-label">COLLECTIONS</span>
-          </div>
-          <span className="orbit-satellite satellite-a" />
-          <span className="orbit-satellite satellite-b" />
-          <span className="orbit-version">v{snapshot?.capabilities.version ?? "—"}</span>
         </div>
       </section>
 
@@ -916,7 +897,12 @@ function Overview({
         </div>
       )}
 
-      <section className="metric-grid" aria-label="Database telemetry">
+      {snapshot && !stats ? (
+        <p className="metrics-unavailable">
+          Server metrics and query patterns require MANAGE permission on <strong>{database}</strong>.
+        </p>
+      ) : (
+      <section className="metric-grid" aria-label="Database metrics">
         <MetricCard
           label="Documents"
           value={documents.toLocaleString()}
@@ -926,7 +912,7 @@ function Overview({
           loading={loading && !snapshot}
         />
         <MetricCard
-          label="Query velocity"
+          label="Queries"
           value={(stats?.server.queries_per_sec ?? 0).toFixed(1)}
           suffix="/ sec"
           detail={`${(stats?.server.queries_total ?? 0).toLocaleString()} total`}
@@ -951,14 +937,11 @@ function Overview({
           loading={loading && !snapshot}
         />
       </section>
+      )}
 
       <div className="overview-grid">
         <section className="station-panel collections-panel">
-          <PanelHeader
-            eyebrow="DATA MAP"
-            title="Collections"
-            action={`${documents.toLocaleString()} documents`}
-          />
+          <PanelHeader title="Collections" action={`${documents.toLocaleString()} documents`} />
           <div className="collection-list">
             {collections.length === 0 && !loading ? (
               <div className="panel-empty">
@@ -988,8 +971,9 @@ function Overview({
           </div>
         </section>
 
+        {(!snapshot || stats) && (
         <section className="station-panel activity-panel pattern-explorer">
-          <PanelHeader eyebrow="SIGNAL LOG" title="Query patterns" action={`${patterns.length} visible`} />
+          <PanelHeader title="Query patterns" action={`${patterns.length} visible`} />
           <div className="pattern-toolbar">
             <label className="pattern-search">
               <Search size={13} />
@@ -1108,6 +1092,7 @@ function Overview({
             </div>
           )}
         </section>
+        )}
       </div>
     </div>
   );
@@ -1143,10 +1128,10 @@ function MetricCard({
   );
 }
 
-function PanelHeader({ eyebrow, title, action }: { eyebrow: string; title: string; action: string }) {
+function PanelHeader({ title, action }: { title: string; action: string }) {
   return (
     <header className="panel-header">
-      <div><span>{eyebrow}</span><h2>{title}</h2></div>
+      <h2>{title}</h2>
       <small>{action}</small>
     </header>
   );
@@ -1191,10 +1176,7 @@ function QueryWorkspace({
   return (
     <div className="view query-view">
       <div className="query-titlebar">
-        <div>
-          <p className="eyebrow"><Command size={13} /> QUERY WORKSPACE</p>
-          <h1>Command the data</h1>
-        </div>
+        <h1>Query</h1>
         <div className="query-title-actions">
           <span><Database size={13} /> {database}</span>
           <button className="run-button" onClick={() => onRun()} disabled={!active.sql.trim()}>
@@ -1277,9 +1259,8 @@ function EmptyDatabaseState({ onSettings }: { onSettings: () => void }) {
   return (
     <div className="empty-database">
       <Database size={26} />
-      <p className="eyebrow">NO DATABASE SELECTED</p>
-      <h1>Station needs a destination.</h1>
-      <p>Create a database on the server, then reconnect Station.</p>
+      <h1>No databases</h1>
+      <p>Create a database on the server, then reconnect.</p>
       <button className="primary-button" onClick={onSettings}><RotateCcw size={15} /> Reconnect</button>
     </div>
   );
@@ -1349,22 +1330,14 @@ function ConnectionPanel({ initial, required, initialError, onClose, onConnect }
         {!required && (
           <button className="panel-close" onClick={onClose} aria-label="Close connection settings"><X size={17} /></button>
         )}
-        <div className="connection-visual" aria-hidden="true">
-          <div className="connection-orbit orbit-one" />
-          <div className="connection-orbit orbit-two" />
-          <div className="connection-core"><Server size={24} /></div>
-          <span className="connection-ping ping-one" />
-          <span className="connection-ping ping-two" />
-        </div>
         <div className="connection-copy">
-          <p className="eyebrow"><Radio size={13} /> STATION UPLINK</p>
           <h2 id="connection-title">Connect to StellarDB</h2>
-          <p>Point Station at a local server or a secure remote endpoint.</p>
+          <p>Local server or an HTTPS remote endpoint.</p>
         </div>
         <form onSubmit={submit}>
           <label>
             <span>Connection name</span>
-            <div className="field-wrap"><Radio size={15} /><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Local StellarDB" required /></div>
+            <div className="field-wrap"><Database size={15} /><input value={name} onChange={(event) => setName(event.target.value)} placeholder="Local StellarDB" required /></div>
           </label>
           <label>
             <span>Server endpoint</span>
@@ -1378,14 +1351,14 @@ function ConnectionPanel({ initial, required, initialError, onClose, onConnect }
                 className={authMode === "anonymous" ? "is-active" : ""}
                 onClick={() => setAuthMode("anonymous")}
               >
-                <Radio size={14} /> Anonymous
+                <UserRound size={14} /> Anonymous
               </button>
               <button
                 type="button"
                 className={authMode === "credentials" ? "is-active" : ""}
                 onClick={() => setAuthMode("credentials")}
               >
-                <UserRound size={14} /> Login
+                <LockKeyhole size={14} /> Login
               </button>
               <button
                 type="button"
@@ -1396,11 +1369,14 @@ function ConnectionPanel({ initial, required, initialError, onClose, onConnect }
               </button>
             </div>
           </fieldset>
+          {authMode === "anonymous" && (
+            <p className="auth-mode-hint">Works only when the server is started with <code>--anonymous-user</code>.</p>
+          )}
           {authMode === "credentials" && (
             <div className="credential-fields">
               <label>
                 <span>Username</span>
-                <div className="field-wrap"><UserRound size={15} /><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="admin" autoComplete="username" required /></div>
+                <div className="field-wrap"><UserRound size={15} /><input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="root" autoComplete="username" required /></div>
               </label>
               <label>
                 <span>Password</span>
@@ -1411,13 +1387,13 @@ function ConnectionPanel({ initial, required, initialError, onClose, onConnect }
           {authMode === "apiKey" && (
             <label>
               <span>API key</span>
-              <div className="field-wrap"><Command size={15} /><input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder="sk_station_••••••••" autoComplete="off" required /></div>
+              <div className="field-wrap"><KeyRound size={15} /><input type="password" value={token} onChange={(event) => setToken(event.target.value)} placeholder="stl_…" autoComplete="off" required /></div>
             </label>
           )}
           {error && <div className="connection-error"><CircleAlert size={15} /><span>{error}</span></div>}
           <button className="connect-button" disabled={submitting}>
-            {submitting ? <LoaderCircle size={16} className="spin" /> : <Radio size={16} />}
-            {submitting ? "Establishing link…" : "Connect Station"}
+            {submitting ? <LoaderCircle size={16} className="spin" /> : <Server size={16} />}
+            {submitting ? "Connecting…" : "Connect"}
           </button>
         </form>
         <p className="connection-footnote">Credentials stay in memory and are never written to browser storage.</p>

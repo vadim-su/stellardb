@@ -357,6 +357,22 @@ python scripts/load_ecommerce.py
 
 For internet-facing deployments, use native TLS or place StellarDB behind a trusted TLS-terminating reverse proxy.
 
+### Public (anonymous) access
+
+Every request needs a bearer token unless `--anonymous-user <name>` (env `STELLAR_ANONYMOUS_USER`) names a managed user. Requests without an `Authorization` header then run as that user, so its policies decide what anonymous clients may do; invalid tokens are still rejected and `root` cannot be used.
+
+```sql
+CREATE USER 'guest' PASSWORD 'unused';
+ALTER USER 'guest' SET role = 'public';
+CREATE POLICY public_read
+  WHEN subject.role = 'public' AND action = 'SELECT' AND resource.database = 'catalog'
+  ALLOW;
+```
+
+```bash
+STELLAR_ANONYMOUS_USER=guest stellar serve
+```
+
 ## 📜 License
 
 StellarDB is available under the [MIT License](LICENSE).

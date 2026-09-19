@@ -303,6 +303,41 @@ async fn spawn_server_with_auth_transport(
     http_body_limit: usize,
     include_connect_info: bool,
 ) -> (SocketAddr, String, tempfile::TempDir) {
+    spawn_server_with_auth_transport_and_anonymous(
+        admission,
+        trusted_proxy_hops,
+        login_body_limit,
+        http_body_limit,
+        include_connect_info,
+        None,
+    )
+    .await
+}
+
+/// Spawn an authenticated server whose credential-less requests resolve to `username`.
+#[allow(dead_code)]
+pub async fn spawn_server_with_anonymous_user(
+    username: &str,
+) -> (SocketAddr, String, tempfile::TempDir) {
+    spawn_server_with_auth_transport_and_anonymous(
+        Default::default(),
+        0,
+        16 * 1024,
+        10 * 1024 * 1024,
+        true,
+        Some(username),
+    )
+    .await
+}
+
+async fn spawn_server_with_auth_transport_and_anonymous(
+    admission: stellardb::server::admission::AdmissionConfig,
+    trusted_proxy_hops: usize,
+    login_body_limit: usize,
+    http_body_limit: usize,
+    include_connect_info: bool,
+    anonymous_user: Option<&str>,
+) -> (SocketAddr, String, tempfile::TempDir) {
     use stellardb::auth::AuthService;
     use stellardb::server::{HttpServerConfig, create_router_with_config};
 
@@ -317,6 +352,10 @@ async fn spawn_server_with_auth_transport(
     let (auth_service, root_password) =
         AuthService::init(system_db, b"integration-test-jwt-secret!!", 3600).unwrap();
     let root_password = root_password.expect("first boot should generate root password");
+    let auth_service = match anonymous_user {
+        Some(username) => auth_service.with_anonymous_user(username).unwrap(),
+        None => auth_service,
+    };
 
     let auth = Some(Arc::new(auth_service));
     let (app, _state) = create_router_with_config(

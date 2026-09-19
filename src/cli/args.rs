@@ -97,6 +97,11 @@ pub enum Commands {
         #[arg(long, env = "STELLAR_JWT_TTL", default_value = "3600")]
         jwt_ttl: u64,
 
+        /// Managed user that requests without credentials are resolved to.
+        /// Its policies decide what anonymous clients may do; cannot be 'root'.
+        #[arg(long, env = "STELLAR_ANONYMOUS_USER")]
+        anonymous_user: Option<String>,
+
         /// Maximum number of concurrent blocking database operations
         #[arg(long, env = "STELLARDB_MAX_DB_CONCURRENCY", default_value_t = 64)]
         max_db_concurrency: usize,
