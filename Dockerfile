@@ -1,7 +1,10 @@
 # The builder always runs on the native build platform and cross-compiles to
 # $TARGETARCH, so multi-arch images do not pay for QEMU-emulated rustc/LLVM.
-FROM --platform=$BUILDPLATFORM rust:1-bookworm AS builder
-COPY --from=oven/bun:1 /usr/local/bin/bun /usr/local/bin/bun
+# bun (used by build.rs to bundle Station) must also be a build-platform binary;
+# a bare `COPY --from=oven/bun:1` would resolve to the target platform.
+FROM --platform=$BUILDPLATFORM oven/bun:1 AS bun
+FROM --platform=$BUILDPLATFORM rust:1-trixie AS builder
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 
 ARG TARGETARCH
 WORKDIR /app
@@ -22,7 +25,9 @@ RUN case "$TARGETARCH" in \
     && echo "$target" > /rust-target \
     && rustup target add "$target"
 
-# aws-lc-sys, ring, and zstd-sys compile C; point their toolchain at the cross gcc.
+# aws-lc-sys, ring, zstd-sys, and numkong/usearch compile C/C++; point their
+# toolchain at the cross gcc. trixie's gcc-14 is required: bookworm's gcc-12
+# rejects numkong's NEON dot-product kernels ("inlining failed ... vdotq_s32").
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
@@ -35,7 +40,7 @@ RUN target="$(cat /rust-target)" \
        --features cli,server,auth,tls,fts,hnsw,ui --bin stellar --target "$target" \
     && cp "target/$target/release/stellar" /stellar
 
-FROM debian:bookworm-slim AS runtime
+FROM debian:trixie-slim AS runtime
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 libstdc++6 \
